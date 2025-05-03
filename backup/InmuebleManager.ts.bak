@@ -1,0 +1,794 @@
+/**
+ * Property manager class
+ * Handles property data processing
+ */
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import imageSize from 'image-size';
+import { Knex } from 'knex';
+import { DatabaseConnection } from '../database/DatabaseConnection';
+import { 
+  PropertyFromAPI, 
+  ApiFilters, 
+  Statistics, 
+  CommandLineArgs,
+  PropertyImage,
+  PropertyCharacteristic,
+  PropertyChange
+} from '../models/types';
+import config from '../config/config';
+
+export class InmuebleManager {
+  private db: DatabaseConnection;
+  private stats: Statistics = {
+    inmuebles_procesados: 0,
+    inmuebles_nuevos: 0,
+    inmuebles_actualizados: 0,
+    inmuebles_sin_cambios: 0,
+    imagenes_descargadas: 0,
+    imagenes_eliminadas: 0,
+    errores: 0,
+    inicio: new Date()
+  };
+
+  /**
+   * Constructor
+   * @param db Database connection
+   */
+  constructor(db: DatabaseConnection) {
+    this.db = db;
+    this.resetStatistics();
+  }
+
+  /**
+   * Gets statistics for the current synchronization
+   * @returns Statistics object
+   */
+  public getStatistics(): Statistics {
+    return this.stats;
+  }
+  
+  /**
+   * Resets statistics
+   */
+  public resetStatistics(): void {
+    this.stats = {
+      inmuebles_procesados: 0,
+      inmuebles_nuevos: 0,
+      inmuebles_actualizados: 0,
+      inmuebles_sin_cambios: 0,
+      imagenes_descargadas: 0,
+      imagenes_eliminadas: 0,
+      errores: 0,
+      inicio: new Date()
+    };
+  }
+
+  /**
+   * Gets data from the API
+   * @param inmuebleId Specific property ID to get
+   * @param filtros Additional filters
+   * @returns API data
+   */
+  public async obtenerDatosApi(inmuebleId?: string, filtros?: ApiFilters): Promise<PropertyFromAPI[] | null> {
+    const url = process.env.API_URL || config.apiUrl;
+    
+    // Prepare POST data
+    const postData: { filtros: ApiFilters } = { filtros: {} };
+    
+    // Add specific property filter if provided
+    if (inmuebleId) {
+      postData.filtros.ref = parseInt(inmuebleId, 10);
+    }
+    
+    // Add additional filters if provided
+    if (filtros) {
+      postData.filtros = { ...postData.filtros, ...filtros };
+    }
+    
+    // Determine if we should use POST
+    const usePost = Object.keys(postData.filtros).length > 0;
+    
+    console.log(`Querying API at: ${url}`);
+    if (usePost) {
+      console.log(`Filters: ${JSON.stringify(postData)}`);
+    }
+    
+    try {
+      let response;
+      
+      if (usePost) {
+        response = await axios.post(url, postData, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
+      } else {
+        response = await axios.get(url, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+      }
+      
+      if (response.status >= 200 && response.status < 300) {
+        console.log(`Response received. Status code: ${response.status}`);
+        console.log(`Response size: ${JSON.stringify(response.data).length} bytes`);
+        
+        return this.extractPropertyData(response.data);
+      } else {
+        console.log(`Error getting data from API. Status code: ${response.status}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`Error in API request: ${(error as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Extracts property data from API response
+   * @param data API response data
+   * @returns Array of properties
+   */
+  private extractPropertyData(data: any): PropertyFromAPI[] {
+    // Get the list of properties according to the response structure
+    let properties: PropertyFromAPI[] = [];
+    
+    if (Array.isArray(data)) {
+      properties = data;
+    } else if (typeof data === 'object') {
+      if (data.data && Array.isArray(data.data)) {
+        properties = data.data;
+      } else if (data.inmuebles && Array.isArray(data.inmuebles)) {
+        properties = data.inmuebles;
+      } else if (data.items && Array.isArray(data.items)) {
+        properties = data.items;
+      } else if (data.results && Array.isArray(data.results)) {
+        properties = data.results;
+      } else if (data.ref) {
+        // If it's a single property
+        properties = [data];
+      }
+    }
+    
+    return properties;
+  }
+
+  /**
+   * Gets or creates a catalog ID
+   * @param tabla Catalog table
+   * @param nombre Value to search or get
+   * @returns Catalog ID
+   */
+  public async obtenerOCrearIdCatalogo(tabla: string, nombre?: string): Promise<number> {
+    // If name is null or empty, create a default value
+    if (!nombre) {
+      // Check if "No especificado" already exists
+      const result = await this.db.getConnection()
+        .table(tabla)
+        .where('nombre', 'No especificado')
+        .first();
+      
+      if (result) {
+        return result.id;
+      }
+      
+      // If it doesn't exist, insert it
+      const [id] = await this.db.getConnection()
+        .table(tabla)
+        .insert({ nombre: 'No especificado' });
+      
+      return id;
+    }
+    
+    // Check if it already exists
+    const result = await this.db.getConnection()
+      .table(tabla)
+      .where('nombre', nombre)
+      .first();
+    
+    if (result) {
+      return result.id;
+    }
+    
+    // If it doesn't exist, insert it
+    const [id] = await this.db.getConnection()
+      .table(tabla)
+      .insert({ nombre });
+    
+    return id;
+  }
+
+  /**
+   * Processes a property from the API
+   * @param property Property data from API
+   * @param downloadImages Whether to download images
+   * @param trackChanges Whether to track changes
+   * @returns Property ID
+   */
+  public async procesarInmueble(
+    property: PropertyFromAPI, 
+    downloadImages: boolean = true,
+    trackChanges: boolean = true
+  ): Promise<number> {
+    const knex = this.db.getConnection();
+    
+    try {
+      // Get or create catalog IDs
+      const ciudadId = await this.obtenerOCrearIdCatalogo('ciudades', property.ciudad);
+      const barrioId = await this.obtenerOCrearIdCatalogo('barrios', property.barrio);
+      const tipoInmuebleId = await this.obtenerOCrearIdCatalogo('tipos_inmueble', property.tipo_inmueble);
+      const usoId = await this.obtenerOCrearIdCatalogo('usos_inmueble', property.uso);
+      const estadoActualId = await this.obtenerOCrearIdCatalogo('estados_inmueble', property.estado_actual);
+      
+      // Check if property already exists
+      const existingProperty = await knex('inmuebles')
+        .where('ref', property.ref)
+        .first();
+      
+      let propertyId: number;
+      
+      // Asegurar que el código de sincronización esté presente
+      // Usar el campo codigo_consignacion_sincronizacion de la API
+      const codigoSincronizacion = property.codigo_consignacion_sincronizacion || 
+                                 property.codigo_sincronizacion || 
+                                 property.codigo_sincronizacion_inmueble || 
+                                 property.id_sincronizacion || 
+                                 `${property.ref}`;
+      
+      // Extraer valores de la API de Orbis con manejo de diferentes nombres de campo
+      const area = property.area_total || property.area || null;
+      const habitaciones = property.alcobas || property.habitaciones || 
+                          (property.caracteristicas?.find(c => c.nombre === 'Alcobas Total')?.valor) || null;
+      const banos = property.baños || property.banos || 
+                   (property.caracteristicas?.find(c => c.nombre === 'Baños')?.valor) || null;
+      const garajes = (property.caracteristicas?.find(c => c.nombre === 'Garaje Cubierto')?.valor) || 
+                     (property.caracteristicas?.find(c => c.nombre === 'Garajes')?.valor) || 
+                     property.garajes || null;
+      const estrato = property.estrato || 
+                     (property.caracteristicas?.find(c => c.nombre === 'Estrato')?.valor) || null;
+      const precio_venta = property.valor_venta || property.precio_venta || null;
+      const precio_canon = property.valor_canon || property.precio_canon || null;
+      const precio_administracion = property.valor_admon || property.administracion || property.precio_administracion || null;
+      
+      // Crear un objeto con los datos relevantes para el hash
+      // IMPORTANTE: No incluir los campos activo y asesor_id en el cálculo del hash
+      // ya que estos campos son gestionados internamente y no vienen de Orbis
+      const datosParaHash = {
+        codigo_sincronizacion: codigoSincronizacion,
+        ciudad: property.ciudad,
+        barrio: property.barrio,
+        tipo_inmueble: property.tipo_inmueble,
+        uso: property.uso,
+        estado_actual: property.estado_actual,
+        direccion: property.direccion,
+        area: area,
+        habitaciones: habitaciones,
+        banos: banos,
+        garajes: garajes,
+        estrato: estrato,
+        precio_venta: precio_venta,
+        precio_canon: precio_canon,
+        precio_administracion: precio_administracion,
+        descripcion: property.observacion_portales || property.descripcion || property.observacion || null,
+        descripcion_corta: property.observacion || property.descripcion_corta || null,
+        latitud: property.latitud,
+        longitud: property.longitud
+        // No incluir activo ni asesor_id en el hash
+      };
+      
+      // Generar hash de los datos
+      const nuevoHash = crypto.createHash('md5').update(JSON.stringify(datosParaHash)).digest('hex');
+      
+      if (existingProperty) {
+        // Verificar si el hash ha cambiado antes de continuar
+        // Si el hash no ha cambiado, no hay necesidad de actualizar el inmueble
+        if (existingProperty.hash_datos === nuevoHash) {
+          console.log(`Inmueble #${property.ref} sin cambios (hash idéntico). Omitiendo actualización.`);
+          this.stats.inmuebles_sin_cambios++;
+          this.stats.inmuebles_procesados++;
+          return existingProperty.id;
+        }
+        
+        // Update existing property but preserve asesor_id and activo fields
+        const updateData = {
+          codigo_sincronizacion: codigoSincronizacion,
+          ciudad_id: ciudadId,
+          barrio_id: barrioId,
+          tipo_inmueble_id: tipoInmuebleId,
+          uso_id: usoId,
+          estado_actual_id: estadoActualId,
+          direccion: property.direccion,
+          area: area,
+          habitaciones: habitaciones,
+          banos: banos,
+          garajes: garajes,
+          estrato: estrato,
+          precio_venta: precio_venta,
+          precio_canon: precio_canon,
+          precio_administracion: precio_administracion,
+          descripcion: property.observacion_portales || property.descripcion || property.observacion || null,
+          descripcion_corta: property.observacion || property.descripcion_corta || null,
+          latitud: property.latitud,
+          longitud: property.longitud,
+          // NO incluir activo en la actualización para mantener el valor existente
+          fecha_actualizacion: knex.fn.now(),
+          fecha_sincronizacion: knex.fn.now(),
+          hash_datos: nuevoHash
+          // NO incluir asesor_id en la actualización para mantener la relación existente
+        };
+        
+        // Track changes if requested
+        if (trackChanges) {
+          // Ya verificamos que el hash ha cambiado antes de llegar aquí
+          const changes: PropertyChange[] = [];
+          
+          // Compare fields and record changes
+          for (const [key, value] of Object.entries(updateData)) {
+            // No registrar cambios en campos de sistema o fechas
+            if (existingProperty[key] !== value && 
+                key !== 'fecha_actualizacion' && 
+                key !== 'fecha_sincronizacion' && 
+                key !== 'hash_datos') {
+                changes.push({
+                  campo: key,
+                  valor_anterior: existingProperty[key],
+                  valor_nuevo: value
+                });
+              }
+            }
+            
+            // If there are changes, update the property and record the changes
+            if (changes.length > 0) {
+              await knex('inmuebles')
+                .where('id', existingProperty.id)
+                .update(updateData);
+              
+              // Record changes
+              for (const change of changes) {
+                await knex('historial_cambios').insert({
+                  inmueble_id: existingProperty.id,
+                  campo: change.campo,
+                  valor_anterior: change.valor_anterior !== null ? String(change.valor_anterior) : null,
+                  valor_nuevo: change.valor_nuevo !== null ? String(change.valor_nuevo) : null,
+                  fecha_cambio: knex.fn.now()
+                });
+              }
+              
+              console.log(`Inmueble #${property.ref} actualizado con ${changes.length} cambios.`);
+              this.stats.inmuebles_actualizados++;
+            } else {
+              console.log(`Inmueble #${property.ref} sin cambios en los campos.`);
+              this.stats.inmuebles_sin_cambios++;
+            }
+          }
+        } else {
+          // Update without tracking changes
+          await knex('inmuebles')
+            .where('id', existingProperty.id)
+            .update(updateData);
+            
+          console.log(`Inmueble #${property.ref} actualizado sin seguimiento de cambios.`);
+          this.stats.inmuebles_actualizados++;
+        }
+        
+        propertyId = existingProperty.id;
+      } else {
+        // Insert new property with default values for activo (true) and asesor_id (1 - Oficina)
+        console.log(`Creando nuevo inmueble #${property.ref}`);
+        [propertyId] = await knex('inmuebles').insert({
+          ref: property.ref,
+          codigo_sincronizacion: codigoSincronizacion,
+          ciudad_id: ciudadId,
+          barrio_id: barrioId,
+          tipo_inmueble_id: tipoInmuebleId,
+          uso_id: usoId,
+          estado_actual_id: estadoActualId,
+          direccion: property.direccion,
+          area: area,
+          habitaciones: habitaciones,
+          banos: banos,
+          garajes: garajes,
+          estrato: estrato,
+          precio_venta: precio_venta,
+          precio_canon: precio_canon,
+          precio_administracion: precio_administracion,
+          descripcion: property.observacion_portales || property.descripcion || property.observacion || null,
+          descripcion_corta: property.observacion || property.descripcion_corta || null,
+          latitud: property.latitud,
+          longitud: property.longitud,
+          activo: true, // Valor por defecto para nuevos inmuebles
+          asesor_id: 1, // Asignar al asesor por defecto (Oficina)
+          fecha_creacion: knex.fn.now(),
+          fecha_actualizacion: knex.fn.now(),
+          fecha_sincronizacion: knex.fn.now(),
+          hash_datos: nuevoHash
+        });
+        
+        this.stats.inmuebles_nuevos++;
+      }
+      
+      // Process images if requested
+      if (downloadImages && property.imagenes && property.imagenes.length > 0) {
+        await this.procesarImagenes(propertyId, property.imagenes);
+      }
+      
+      // Process characteristics if available
+      if (property.caracteristicas && property.caracteristicas.length > 0) {
+        await this.procesarCaracteristicas(propertyId, property.caracteristicas);
+      }
+      
+      this.stats.inmuebles_procesados++;
+      return propertyId;
+    } catch (error) {
+      console.error(`Error processing property ${property.ref}: ${(error as Error).message}`);
+      this.stats.errores++;
+      throw error;
+    }
+  }
+
+  /**
+   * Processes property images
+   * @param propertyId Property ID
+   * @param images Array of images
+   */
+  private async procesarImagenes(propertyId: number, images: PropertyImage[]): Promise<void> {
+    const knex = this.db.getConnection();
+    const imagesFolder = config.imagesFolder;
+    
+    // Create property folder if it doesn't exist
+    const propertyFolder = path.join(imagesFolder, propertyId.toString());
+    if (!fs.existsSync(propertyFolder)) {
+      fs.mkdirSync(propertyFolder, { recursive: true });
+    }
+    
+    // Get existing images for this property
+    const existingImages = await knex('imagenes')
+      .where('inmueble_id', propertyId)
+      .select('url_original', 'hash_md5', 'id', 'ruta_local');
+    
+    // Create a map of existing images by URL
+    const existingImageMap = new Map<string, { id: number, hash_md5: string, ruta_local: string }>();
+    for (const img of existingImages) {
+      existingImageMap.set(img.url_original, { id: img.id, hash_md5: img.hash_md5, ruta_local: img.ruta_local });
+    }
+    
+    // Create a set of current image URLs from the API
+    const currentImageUrls = new Set<string>();
+    for (const image of images) {
+      currentImageUrls.add(image.url);
+    }
+    
+    // Process each image from the API
+    for (let i = 0; i < images.length; i++) {
+      const image = images[i];
+      
+      try {
+        // Check if image already exists
+        const existing = existingImageMap.get(image.url);
+        
+        // Generate file name
+        const fileExtension = path.extname(image.url) || '.jpg';
+        const fileName = `${i + 1}${fileExtension}`;
+        const localPath = path.join(propertyFolder, fileName);
+        
+        // Download the image if it doesn't exist or if we don't have a hash
+        if (!existing || !existing.hash_md5) {
+          // Download the image
+          const response = await axios.get(image.url, { responseType: 'arraybuffer' });
+          const imageBuffer = Buffer.from(response.data);
+          
+          // Calculate MD5 hash
+          const hash = crypto.createHash('md5').update(imageBuffer).digest('hex');
+          
+          // Save the image
+          fs.writeFileSync(localPath, imageBuffer);
+          
+          // Get image dimensions
+          let width = 0;
+          let height = 0;
+          try {
+            const dimensions = imageSize(Buffer.from(fs.readFileSync(localPath)));
+            width = dimensions.width || 0;
+            height = dimensions.height || 0;
+          } catch (e) {
+            console.error(`Error getting image dimensions: ${(e as Error).message}`);
+          }
+          
+          // Determinar si es la imagen principal (orden=0)
+          const orden = image.orden !== undefined ? image.orden : i;
+          const esPrincipal = orden === 0 ? true : !!image.es_principal;
+          
+          // Update or insert the image record
+          if (existing) {
+            await knex('imagenes')
+              .where('id', existing.id)
+              .update({
+                ruta_local: localPath,
+                hash_md5: hash,
+                ancho: width,
+                alto: height,
+                tamano_bytes: imageBuffer.length,
+                es_principal: esPrincipal,
+                orden: orden,
+                updated_at: knex.fn.now()
+              });
+          } else {
+            await knex('imagenes').insert({
+              inmueble_id: propertyId,
+              url_original: image.url,
+              ruta_local: localPath,
+              hash_md5: hash,
+              ancho: width,
+              alto: height,
+              tamano_bytes: imageBuffer.length,
+              es_principal: esPrincipal,
+              orden: orden,
+              created_at: knex.fn.now(),
+              updated_at: knex.fn.now()
+            });
+          }
+          
+          this.stats.imagenes_descargadas++;
+        }
+      } catch (error) {
+        console.error(`Error downloading image: ${(error as Error).message}`);
+        this.stats.errores++;
+      }
+    }
+    
+    // Delete images that no longer exist in the API
+    for (const [url, imageData] of existingImageMap.entries()) {
+      if (!currentImageUrls.has(url)) {
+        try {
+          // Delete the image record from the database
+          await knex('imagenes')
+            .where('id', imageData.id)
+            .delete();
+          
+          // Delete the physical file if it exists
+          if (imageData.ruta_local && fs.existsSync(imageData.ruta_local)) {
+            fs.unlinkSync(imageData.ruta_local);
+          }
+          
+          console.log(`Deleted image that no longer exists in API: ${url}`);
+          this.stats.imagenes_eliminadas = (this.stats.imagenes_eliminadas || 0) + 1;
+        } catch (error) {
+          console.error(`Error deleting image: ${(error as Error).message}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Processes property characteristics
+   * @param propertyId Property ID
+   * @param characteristics Array of characteristics
+   */
+  private async procesarCaracteristicas(propertyId: number, characteristics: PropertyCharacteristic[]): Promise<void> {
+    const knex = this.db.getConnection();
+    
+    // Clear existing characteristics for this property
+    await knex('inmueble_caracteristicas')
+      .where('inmueble_id', propertyId)
+      .delete();
+    
+    // Process each characteristic
+    for (const characteristic of characteristics) {
+      try {
+        // Get or create the characteristic definition
+        const caracteristicaId = await this.obtenerOCrearCaracteristica(
+          characteristic.nombre,
+          characteristic.tipo || 'auto',
+          characteristic.unidad
+        );
+        
+        // Get the characteristic type
+        const caracteristicaInfo = await knex('caracteristicas')
+          .where('id', caracteristicaId)
+          .first();
+        
+        // Insert the characteristic value
+        const insertData: any = {
+          inmueble_id: propertyId,
+          caracteristica_id: caracteristicaId,
+          created_at: knex.fn.now(),
+          updated_at: knex.fn.now()
+        };
+        
+        // Set the value according to the type
+        if (caracteristicaInfo.tipo === 'booleano') {
+          insertData.valor_booleano = !!characteristic.valor;
+        } else if (caracteristicaInfo.tipo === 'numerico') {
+          insertData.valor_numerico = typeof characteristic.valor === 'number' 
+            ? characteristic.valor 
+            : parseFloat(characteristic.valor as string) || null;
+        } else {
+          insertData.valor_texto = String(characteristic.valor);
+        }
+        
+        await knex('inmueble_caracteristicas').insert(insertData);
+      } catch (error) {
+        console.error(`Error processing characteristic ${characteristic.nombre}: ${(error as Error).message}`);
+      }
+    }
+  }
+
+  /**
+   * Gets or creates a characteristic definition
+   * @param nombre Characteristic name
+   * @param tipo Characteristic type
+   * @param unidad Unit of measurement for numeric characteristics
+   * @param descripcion Characteristic description
+   * @returns Characteristic ID
+   */
+  public async obtenerOCrearCaracteristica(
+    nombre: string, 
+    tipo: 'booleano' | 'numerico' | 'texto' | 'auto' = 'auto', 
+    unidad?: string, 
+    descripcion?: string
+  ): Promise<number> {
+    const knex = this.db.getConnection();
+    
+    // Determine type based on name if not provided
+    let finalTipo: 'booleano' | 'numerico' | 'texto' = 'texto';
+    
+    if (tipo === 'auto' as 'booleano' | 'numerico' | 'texto' | 'auto') {
+      // These terms usually indicate boolean characteristics
+      const terminos_booleanos = ['tiene', 'con', 'sin', 'posee', 'incluye'];
+      const nombres_booleanos = [
+        'Baño Auxiliar', 'Estufa', 'Gas Natural', 'Cocina Integral', 'Piso en Cerámica',
+        'Terraza', 'Balcón', 'Garaje/Parqueadero(s)'
+      ];
+      
+      for (const termino of terminos_booleanos) {
+        if (nombre.toLowerCase().includes(termino.toLowerCase())) {
+          finalTipo = 'booleano';
+          break;
+        }
+      }
+      
+      for (const nombreBool of nombres_booleanos) {
+        if (nombre.toLowerCase() === nombreBool.toLowerCase()) {
+          finalTipo = 'booleano';
+          break;
+        }
+      }
+      
+      // These terms usually indicate numeric characteristics
+      const terminos_numericos = ['número', 'cantidad', 'area', 'área', 'metros', 'precio', 'valor'];
+      const unidades_numericas = ['m2', 'mt2', 'mts2', '$', 'pesos', 'metros'];
+      
+      for (const termino of terminos_numericos) {
+        if (nombre.toLowerCase().includes(termino.toLowerCase())) {
+          finalTipo = 'numerico';
+          break;
+        }
+      }
+      
+      if (unidad) {
+        for (const unidadNum of unidades_numericas) {
+          if (unidad.toLowerCase().includes(unidadNum.toLowerCase())) {
+            finalTipo = 'numerico';
+            break;
+          }
+        }
+      }
+    } else {
+      finalTipo = tipo === 'auto' as 'booleano' | 'numerico' | 'texto' | 'auto' ? 'texto' : (tipo as 'booleano' | 'numerico' | 'texto');
+    }
+    
+    // Check if characteristic already exists
+    const existing = await knex('caracteristicas')
+      .where('nombre', nombre)
+      .first();
+    
+    if (existing) {
+      // Update the type if it's different
+      if (existing.tipo !== finalTipo || existing.unidad !== unidad) {
+        await knex('caracteristicas')
+          .where('id', existing.id)
+          .update({
+            tipo: finalTipo,
+            unidad: unidad,
+            descripcion: descripcion,
+            updated_at: knex.fn.now()
+          });
+      }
+      
+      return existing.id;
+    }
+    
+    // Insert new characteristic
+    const [id] = await knex('caracteristicas').insert({
+      nombre,
+      tipo: finalTipo,
+      unidad,
+      descripcion,
+      created_at: knex.fn.now(),
+      updated_at: knex.fn.now()
+    });
+    
+    return id;
+  }
+
+  /**
+   * Marks properties as inactive if they are not in the API
+   * @param activePropertyRefs Array of active property references
+   * @returns Number of properties marked as inactive
+   */
+  public async marcarInactivosNoPresentes(activePropertyRefs: string[]): Promise<number> {
+    const knex = this.db.getConnection();
+    
+    try {
+      // Get properties that are active but not in the active refs list
+      const result = await knex('inmuebles')
+        .whereNotIn('ref', activePropertyRefs)
+        .where('activo', true)
+        .update({
+          activo: false,
+          fecha_actualizacion: knex.fn.now()
+        });
+      
+      console.log(`Marcados ${result} inmuebles como inactivos`);
+      return result;
+    } catch (error) {
+      console.error(`Error al marcar inmuebles inactivos: ${(error as Error).message}`);
+      this.stats.errores++;
+      throw error;
+    }
+  }
+
+  /**
+   * Gets statistics for the current synchronization
+   * @returns Statistics object
+   */
+  public getStatistics(): Statistics {
+    this.stats.fin = new Date();
+    return this.stats;
+  }
+
+  /**
+   * Resets statistics
+   */
+  public resetStatistics(): void {
+    this.stats = {
+      inmuebles_procesados: 0,
+      inmuebles_nuevos: 0,
+      inmuebles_actualizados: 0,
+      inmuebles_sin_cambios: 0,
+      imagenes_descargadas: 0,
+      imagenes_eliminadas: 0,
+      errores: 0,
+      inicio: new Date()
+    };
+  }
+
+  /**
+   * Records the execution in the database
+   * @param stats Statistics object
+   * @param detalles Additional details
+   * @returns Execution ID
+   */
+  public async registrarEjecucion(stats: Statistics, detalles?: string): Promise<number> {
+    const knex = this.db.getConnection();
+    
+    const [id] = await knex('ejecuciones').insert({
+      fecha_inicio: stats.inicio,
+      fecha_fin: stats.fin,
+      inmuebles_procesados: stats.inmuebles_procesados,
+      inmuebles_nuevos: stats.inmuebles_nuevos,
+      inmuebles_actualizados: stats.inmuebles_actualizados,
+      inmuebles_sin_cambios: stats.inmuebles_sin_cambios,
+      imagenes_descargadas: stats.imagenes_descargadas,
+      errores: stats.errores,
+      detalles
+    });
+    
+    return id;
+  }
+}

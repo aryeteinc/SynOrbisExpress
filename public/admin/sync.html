@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración de Sincronizaciones - SyncOrbis Express</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            background-color: #f8f9fa;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,.1);
+        }
+        .card-header {
+            font-weight: bold;
+            background-color: #f1f1f1;
+        }
+        .status-badge {
+            font-size: 0.9rem;
+        }
+        .sync-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        #syncHistory .card {
+            transition: all 0.3s ease;
+        }
+        #syncHistory .card:hover {
+            transform: translateY(-2px);
+        }
+        .estado-en_progreso {
+            background-color: #fff3cd;
+        }
+        .estado-completado {
+            background-color: #d1e7dd;
+        }
+        .estado-error {
+            background-color: #f8d7da;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1>Administración de Sincronizaciones</h1>
+                    <div>
+                        <button id="logoutBtn" class="btn btn-outline-secondary">Cerrar sesión</button>
+                    </div>
+                </div>
+                <hr>
+            </div>
+        </div>
+
+        <!-- Toast para notificaciones -->
+        <div class="toast-container">
+            <div id="notificationToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header">
+                    <strong class="me-auto" id="toastTitle">Notificación</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+                <div class="toast-body" id="toastMessage">
+                    Mensaje de notificación
+                </div>
+            </div>
+        </div>
+
+        <!-- Sincronización actual -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        Sincronización Actual
+                    </div>
+                    <div class="card-body">
+                        <div id="currentSyncLoader">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="currentSyncEmpty" class="hidden">
+                            <p class="text-center">No hay sincronizaciones en progreso.</p>
+                        </div>
+                        <div id="currentSyncData" class="hidden">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5>Detalles de la sincronización</h5>
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <th width="40%">ID:</th>
+                                            <td id="syncId"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Estado:</th>
+                                            <td id="syncStatus"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Inicio:</th>
+                                            <td id="syncStart"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Duración:</th>
+                                            <td id="syncDuration"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Usuario:</th>
+                                            <td id="syncUser"></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5>Estadísticas</h5>
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <th width="40%">Total inmuebles:</th>
+                                            <td id="syncTotal"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Nuevos:</th>
+                                            <td id="syncNew"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Actualizados:</th>
+                                            <td id="syncUpdated"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Sin cambios:</th>
+                                            <td id="syncUnchanged"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Errores:</th>
+                                            <td id="syncErrors"></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <button id="refreshCurrentBtn" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-arrow-clockwise"></i> Actualizar
+                                            </button>
+                                        </div>
+                                        <div>
+                                            <button id="cleanSyncBtn" class="btn btn-warning btn-sm">
+                                                Limpiar sincronización bloqueada
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Acciones de sincronización -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        Acciones
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <button id="startSyncBtn" class="btn btn-primary w-100">
+                                    <span id="startSyncSpinner" class="spinner-border spinner-border-sm hidden" role="status" aria-hidden="true"></span>
+                                    Iniciar nueva sincronización
+                                </button>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <button id="cleanAllSyncsBtn" class="btn btn-warning w-100">
+                                    <span id="cleanAllSyncsSpinner" class="spinner-border spinner-border-sm hidden" role="status" aria-hidden="true"></span>
+                                    Limpiar todas las sincronizaciones bloqueadas
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historial de sincronizaciones -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        Historial de Sincronizaciones
+                    </div>
+                    <div class="card-body">
+                        <div id="syncHistoryLoader">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="syncHistory" class="hidden">
+                            <!-- El historial se cargará dinámicamente aquí -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variables globales
+        let token = localStorage.getItem('token');
+        let currentSyncId = null;
+        let refreshInterval = null;
+
+        // Función para mostrar notificaciones
+        function showNotification(title, message, type = 'success') {
+            const toast = document.getElementById('notificationToast');
+            const toastTitle = document.getElementById('toastTitle');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastTitle.textContent = title;
+            toastMessage.textContent = message;
+            
+            // Configurar el color según el tipo
+            toast.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'text-white');
+            if (type === 'success') {
+                toast.classList.add('bg-success', 'text-white');
+            } else if (type === 'error') {
+                toast.classList.add('bg-danger', 'text-white');
+            } else if (type === 'warning') {
+                toast.classList.add('bg-warning');
+            }
+            
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+
+        // Función para formatear fechas
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            const date = new Date(dateString);
+            return date.toLocaleString('es-ES');
+        }
+
+        // Función para calcular duración
+        function calculateDuration(startDate, endDate) {
+            if (!startDate) return 'N/A';
+            
+            const start = new Date(startDate);
+            const end = endDate ? new Date(endDate) : new Date();
+            
+            const diffMs = end - start;
+            const diffSec = Math.floor(diffMs / 1000);
+            
+            if (diffSec < 60) {
+                return `${diffSec} segundos`;
+            } else if (diffSec < 3600) {
+                return `${Math.floor(diffSec / 60)} minutos`;
+            } else {
+                const hours = Math.floor(diffSec / 3600);
+                const minutes = Math.floor((diffSec % 3600) / 60);
+                return `${hours} horas, ${minutes} minutos`;
+            }
+        }
+
+        // Función para obtener la sincronización actual
+        async function getCurrentSync() {
+            try {
+                document.getElementById('currentSyncLoader').classList.remove('hidden');
+                document.getElementById('currentSyncEmpty').classList.add('hidden');
+                document.getElementById('currentSyncData').classList.add('hidden');
+                
+                const response = await fetch('/api/sync/current', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.data) {
+                        // Hay una sincronización
+                        const sync = data.data;
+                        currentSyncId = sync.id;
+                        
+                        // Actualizar los datos en la UI
+                        document.getElementById('syncId').textContent = sync.id;
+                        document.getElementById('syncStatus').textContent = formatStatus(sync.estado);
+                        document.getElementById('syncStart').textContent = formatDate(sync.fecha_inicio);
+                        document.getElementById('syncDuration').textContent = calculateDuration(sync.fecha_inicio, sync.fecha_fin);
+                        document.getElementById('syncUser').textContent = sync.usuario || 'Sistema';
+                        
+                        document.getElementById('syncTotal').textContent = sync.total_inmuebles || 0;
+                        document.getElementById('syncNew').textContent = sync.nuevos || 0;
+                        document.getElementById('syncUpdated').textContent = sync.actualizados || 0;
+                        document.getElementById('syncUnchanged').textContent = sync.sin_cambios || 0;
+                        document.getElementById('syncErrors').textContent = sync.errores || 0;
+                        
+                        // Mostrar el botón de limpiar solo si está en progreso
+                        const cleanSyncBtn = document.getElementById('cleanSyncBtn');
+                        if (sync.estado === 'en_progreso') {
+                            cleanSyncBtn.classList.remove('hidden');
+                            
+                            // Si no hay un intervalo de actualización y está en progreso, iniciar uno
+                            if (!refreshInterval && sync.estado === 'en_progreso') {
+                                refreshInterval = setInterval(getCurrentSync, 5000);
+                            }
+                        } else {
+                            cleanSyncBtn.classList.add('hidden');
+                            // Si hay un intervalo y la sincronización no está en progreso, detenerlo
+                            if (refreshInterval) {
+                                clearInterval(refreshInterval);
+                                refreshInterval = null;
+                            }
+                        }
+                        
+                        document.getElementById('currentSyncData').classList.remove('hidden');
+                    } else {
+                        // No hay sincronización
+                        document.getElementById('currentSyncEmpty').classList.remove('hidden');
+                        currentSyncId = null;
+                        
+                        // Si hay un intervalo y no hay sincronización, detenerlo
+                        if (refreshInterval) {
+                            clearInterval(refreshInterval);
+                            refreshInterval = null;
+                        }
+                    }
+                } else {
+                    showNotification('Error', data.message || 'Error al obtener la sincronización actual', 'error');
+                    document.getElementById('currentSyncEmpty').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Error', 'Error al obtener la sincronización actual', 'error');
+                document.getElementById('currentSyncEmpty').classList.remove('hidden');
+            } finally {
+                document.getElementById('currentSyncLoader').classList.add('hidden');
+            }
+        }
+
+        // Función para formatear el estado
+        function formatStatus(status) {
+            switch (status) {
+                case 'en_progreso':
+                    return '<span class="badge bg-warning">En progreso</span>';
+                case 'completado':
+                    return '<span class="badge bg-success">Completado</span>';
+                case 'error':
+                    return '<span class="badge bg-danger">Error</span>';
+                default:
+                    return '<span class="badge bg-secondary">Desconocido</span>';
+            }
+        }
+
+        // Función para obtener el historial de sincronizaciones
+        async function getSyncHistory() {
+            try {
+                document.getElementById('syncHistoryLoader').classList.remove('hidden');
+                document.getElementById('syncHistory').classList.add('hidden');
+                
+                // Aquí deberíamos tener un endpoint para obtener el historial, pero como no existe,
+                // vamos a usar el endpoint de ejecuciones para obtener la lista
+                const response = await fetch('/api/sync/history', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const historyContainer = document.getElementById('syncHistory');
+                    historyContainer.innerHTML = '';
+                    
+                    if (data.data && data.data.length > 0) {
+                        // Crear una tabla para mostrar el historial
+                        const table = document.createElement('table');
+                        table.className = 'table table-striped table-hover';
+                        
+                        // Crear encabezado de la tabla
+                        const thead = document.createElement('thead');
+                        thead.innerHTML = `
+                            <tr>
+                                <th>ID</th>
+                                <th>Estado</th>
+                                <th>Inicio</th>
+                                <th>Duración</th>
+                                <th>Total</th>
+                                <th>Nuevos</th>
+                                <th>Actualizados</th>
+                                <th>Errores</th>
+                                <th>Acciones</th>
+                            </tr>
+                        `;
+                        table.appendChild(thead);
+                        
+                        // Crear cuerpo de la tabla
+                        const tbody = document.createElement('tbody');
+                        
+                        data.data.forEach(sync => {
+                            const tr = document.createElement('tr');
+                            tr.className = `estado-${sync.estado}`;
+                            
+                            tr.innerHTML = `
+                                <td>${sync.id}</td>
+                                <td>${formatStatus(sync.estado)}</td>
+                                <td>${formatDate(sync.fecha_inicio)}</td>
+                                <td>${calculateDuration(sync.fecha_inicio, sync.fecha_fin)}</td>
+                                <td>${sync.total_inmuebles || 0}</td>
+                                <td>${sync.nuevos || 0}</td>
+                                <td>${sync.actualizados || 0}</td>
+                                <td>${sync.errores || 0}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-outline-primary view-sync" data-id="${sync.id}">Ver</button>
+                                        ${sync.estado === 'en_progreso' ? `<button class="btn btn-sm btn-outline-warning clean-sync" data-id="${sync.id}">Limpiar</button>` : ''}
+                                    </div>
+                                </td>
+                            `;
+                            
+                            tbody.appendChild(tr);
+                        });
+                        
+                        table.appendChild(tbody);
+                        historyContainer.appendChild(table);
+                        
+                        // Agregar event listeners a los botones
+                        document.querySelectorAll('.view-sync').forEach(btn => {
+                            btn.addEventListener('click', () => {
+                                const syncId = btn.getAttribute('data-id');
+                                viewSyncDetails(syncId);
+                            });
+                        });
+                        
+                        document.querySelectorAll('.clean-sync').forEach(btn => {
+                            btn.addEventListener('click', () => {
+                                const syncId = btn.getAttribute('data-id');
+                                cleanSync(syncId);
+                            });
+                        });
+                    } else {
+                        historyContainer.innerHTML = '<p class="text-center">No hay sincronizaciones registradas.</p>';
+                    }
+                    
+                    historyContainer.classList.remove('hidden');
+                } else {
+                    const data = await response.json();
+                    showNotification('Error', data.message || 'Error al obtener el historial de sincronizaciones', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Error', 'Error al obtener el historial de sincronizaciones', 'error');
+            } finally {
+                document.getElementById('syncHistoryLoader').classList.add('hidden');
+            }
+        }
+
+        // Función para ver detalles de una sincronización
+        async function viewSyncDetails(syncId) {
+            try {
+                const response = await fetch(`/api/sync/status/${syncId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    // Aquí podríamos mostrar un modal con los detalles completos
+                    console.log('Detalles de la sincronización:', data);
+                    
+                    // Por ahora, simplemente actualizamos la vista actual si es la sincronización actual
+                    if (currentSyncId === parseInt(syncId)) {
+                        getCurrentSync();
+                    }
+                } else {
+                    const data = await response.json();
+                    showNotification('Error', data.message || 'Error al obtener los detalles de la sincronización', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Error', 'Error al obtener los detalles de la sincronización', 'error');
+            }
+        }
+
+        // Función para limpiar una sincronización específica
+        async function cleanSync(syncId) {
+            try {
+                const response = await fetch('/api/sync/clean', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ sync_id: parseInt(syncId) })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showNotification('Éxito', data.message || 'Sincronización limpiada correctamente', 'success');
+                    // Actualizar la vista
+                    getCurrentSync();
+                    getSyncHistory();
+                } else {
+                    showNotification('Error', data.message || 'Error al limpiar la sincronización', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Error', 'Error al limpiar la sincronización', 'error');
+            }
+        }
+
+        // Función para limpiar todas las sincronizaciones bloqueadas
+        async function cleanAllSyncs() {
+            try {
+                document.getElementById('cleanAllSyncsSpinner').classList.remove('hidden');
+                
+                const response = await fetch('/api/sync/clean', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showNotification('Éxito', data.message || 'Sincronizaciones limpiadas correctamente', 'success');
+                    // Actualizar la vista
+                    getCurrentSync();
+                    getSyncHistory();
+                } else {
+                    showNotification('Error', data.message || 'Error al limpiar las sincronizaciones', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Error', 'Error al limpiar las sincronizaciones', 'error');
+            } finally {
+                document.getElementById('cleanAllSyncsSpinner').classList.add('hidden');
+            }
+        }
+
+        // Función para iniciar una nueva sincronización
+        async function startSync() {
+            try {
+                document.getElementById('startSyncSpinner').classList.remove('hidden');
+                
+                const response = await fetch('/api/sync/start', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showNotification('Éxito', 'Sincronización iniciada correctamente', 'success');
+                    // Actualizar la vista
+                    getCurrentSync();
+                    // Iniciar un intervalo para actualizar la vista cada 5 segundos
+                    if (!refreshInterval) {
+                        refreshInterval = setInterval(getCurrentSync, 5000);
+                    }
+                } else {
+                    showNotification('Error', data.message || 'Error al iniciar la sincronización', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Error', 'Error al iniciar la sincronización', 'error');
+            } finally {
+                document.getElementById('startSyncSpinner').classList.add('hidden');
+            }
+        }
+
+        // Función para cerrar sesión
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/admin/login.html';
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Verificar si hay token
+            if (!token) {
+                window.location.href = '/admin/login.html';
+                return;
+            }
+            
+            // Cargar datos iniciales
+            getCurrentSync();
+            getSyncHistory();
+            
+            // Event listeners para botones
+            document.getElementById('refreshCurrentBtn').addEventListener('click', getCurrentSync);
+            document.getElementById('cleanSyncBtn').addEventListener('click', () => {
+                if (currentSyncId) {
+                    cleanSync(currentSyncId);
+                }
+            });
+            document.getElementById('startSyncBtn').addEventListener('click', startSync);
+            document.getElementById('cleanAllSyncsBtn').addEventListener('click', cleanAllSyncs);
+            document.getElementById('logoutBtn').addEventListener('click', logout);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./imagenes_inmuebles:/app/imagenes_inmuebles
+      - ./data:/app/data
+    environment:
+      - DB_TYPE=sqlite
+      - SQLITE_PATH=/app/data/inmuebles_db.sqlite
+      - API_URL=${API_URL}
+      - PORT=3001
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET}
+    restart: unless-stopped
+
+  # Descomenta esta sección para usar MySQL en lugar de SQLite
+  db:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=inmuebles
+      - MYSQL_USER=syncorbis
+      - MYSQL_PASSWORD=password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    restart: unless-stopped
+
+# Descomenta esta sección para usar MySQL
+volumes:
+  mysql_data:

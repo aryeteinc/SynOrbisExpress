@@ -1,0 +1,62 @@
+{
+  "name": "syncorbis-express",
+  "version": "1.0.0",
+  "description": "Express.js application for synchronizing property data from an API to a database",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:prod": "NODE_ENV=production npm run clean && tsc && npm run copy-scripts",
+    "build:bundle": "bash scripts/build-prod.sh",
+    "build:bundle:obfuscate": "bash scripts/build-prod.sh --obfuscate",
+    "copy-scripts": "mkdir -p dist/scripts && cp scripts/*.js dist/scripts/",
+    "start": "node dist/index.js",
+    "start:prod": "NODE_ENV=production node dist/index.js",
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "clean": "rimraf dist",
+    "rebuild": "npm run clean && npm run build",
+    "sync": "ts-node scripts/sync-orbis.ts",
+    "lint": "eslint . --ext .ts",
+    "postbuild:prod": "echo 'Build completado. Archivos listos en la carpeta dist/'"
+  },
+  "keywords": [
+    "property",
+    "real estate",
+    "synchronization",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.8.4",
+    "bcrypt": "^5.1.1",
+    "better-sqlite3": "^11.9.1",
+    "commander": "^13.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.18.3",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "image-size": "^2.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "knex": "^3.1.0",
+    "mongodb": "^6.15.0",
+    "mongoose": "^8.13.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.14.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/morgan": "^1.9.9",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^22.14.0",
+    "nodemon": "^3.1.0",
+    "rimraf": "^5.0.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
