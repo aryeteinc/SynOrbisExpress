@@ -7,34 +7,19 @@ const fs = require('fs');
 // Configuración para Railway
 const isRailway = process.env.RAILWAY_STATIC_URL ? true : false;
 
-// Configurar variables de entorno para MySQL en Railway
-if (isRailway) {
-  console.log('Entorno Railway detectado');
-  console.log('Variables de entorno originales:');
-  console.log('MYSQLHOST:', process.env.MYSQLHOST);
-  console.log('MYSQLPORT:', process.env.MYSQLPORT);
-  console.log('MYSQLUSER:', process.env.MYSQLUSER);
-  console.log('MYSQLPASSWORD:', process.env.MYSQLPASSWORD ? '***' : 'no definido');
-  console.log('MYSQLDATABASE:', process.env.MYSQLDATABASE);
-  
-  // Mapear variables de Railway a las que espera la aplicación
-  if (process.env.MYSQLHOST) {
-    process.env.MYSQL_HOST = process.env.MYSQLHOST;
-    process.env.MYSQL_PORT = process.env.MYSQLPORT || '3306';
-    process.env.MYSQL_USER = process.env.MYSQLUSER;
-    process.env.MYSQL_PASSWORD = process.env.MYSQLPASSWORD;
-    process.env.MYSQL_DATABASE = process.env.MYSQLDATABASE;
-    process.env.DB_TYPE = 'mysql';
-    
-    console.log('Variables de entorno mapeadas:');
-    console.log('MYSQL_HOST:', process.env.MYSQL_HOST);
-    console.log('MYSQL_PORT:', process.env.MYSQL_PORT);
-    console.log('MYSQL_USER:', process.env.MYSQL_USER);
-    console.log('MYSQL_DATABASE:', process.env.MYSQL_DATABASE);
-  } else {
-    console.log('ADVERTENCIA: Variables MySQL de Railway no detectadas');
-  }
-}
+// Configuración simplificada para Railway
+console.log('Iniciando aplicación en modo:', process.env.NODE_ENV);
+console.log('Railway detectado:', isRailway ? 'Sí' : 'No');
+
+// Mostrar variables de configuración (sin mostrar contraseñas)
+console.log('Configuración de base de datos:');
+console.log('- DB_TYPE:', process.env.DB_TYPE);
+console.log('- MYSQL_HOST:', process.env.MYSQL_HOST);
+console.log('- MYSQL_PORT:', process.env.MYSQL_PORT);
+console.log('- MYSQL_USER:', process.env.MYSQL_USER);
+console.log('- MYSQL_DATABASE:', process.env.MYSQL_DATABASE);
+console.log('- API_URL configurada:', process.env.API_URL ? 'Sí' : 'No');
+console.log('- API_KEY configurada:', process.env.API_KEY ? 'Sí' : 'No');
 
 // Crear la aplicación Express
 const app = express();
@@ -107,81 +92,56 @@ app.get('/status', async (req, res) => {
   let dbStatus = 'No verificado';
   
   // Intentar conectar a la base de datos
-  if (process.env.DB_TYPE === 'mysql') {
-    // Verificar si tenemos todas las variables necesarias
-    const mysqlVars = {
-      host: process.env.MYSQL_HOST,
-      port: process.env.MYSQL_PORT,
-      user: process.env.MYSQL_USER,
-      password: process.env.MYSQL_PASSWORD,
-      database: process.env.MYSQL_DATABASE
-    };
-    
-    console.log('Intentando conectar a MySQL con:', {
-      host: mysqlVars.host,
-      port: mysqlVars.port,
-      user: mysqlVars.user,
-      database: mysqlVars.database
-    });
-    
-    // Verificar si falta alguna variable
-    const missingVars = Object.entries(mysqlVars)
-      .filter(([key, value]) => !value)
-      .map(([key]) => key);
-    
-    if (missingVars.length > 0) {
-      dbStatus = `Faltan variables: ${missingVars.join(', ')}`;
-      console.error('Faltan variables de entorno para MySQL:', missingVars);
-    } else {
-      try {
-        const mysql = require('mysql2/promise');
-        const connection = await mysql.createConnection(mysqlVars);
-        
-        // Verificar la conexión con una consulta simple
-        const [rows] = await connection.execute('SELECT 1 as test');
-        if (rows && rows.length > 0) {
-          dbStatus = 'Conectado correctamente';
-        }
-        
-        await connection.end();
-      } catch (error) {
-        dbStatus = `Error: ${error.message}`;
-        console.error('Error al conectar a la base de datos:', error);
+  try {
+    // Usar un enfoque simple y directo
+    if (process.env.DB_TYPE === 'mysql' && process.env.MYSQL_HOST) {
+      const mysql = require('mysql2/promise');
+      
+      // Configuración de conexión
+      const config = {
+        host: process.env.MYSQL_HOST,
+        port: process.env.MYSQL_PORT || 3306,
+        user: process.env.MYSQL_USER,
+        password: process.env.MYSQL_PASSWORD,
+        database: process.env.MYSQL_DATABASE
+      };
+      
+      console.log('Intentando conectar a MySQL:', config.host, config.port, config.database);
+      
+      const connection = await mysql.createConnection(config);
+      const [rows] = await connection.execute('SELECT 1 as test');
+      
+      if (rows && rows.length > 0) {
+        dbStatus = 'Conectado correctamente a MySQL';
       }
+      
+      await connection.end();
+    } else {
+      dbStatus = 'MySQL no configurado correctamente';
     }
+  } catch (error) {
+    dbStatus = `Error de conexión: ${error.message}`;
+    console.error('Error al conectar a la base de datos:', error);
   }
   
-  // Configurar variables de entorno para MySQL en Railway
-  if (isRailway) {
-    // Mapear variables de Railway a las que espera la aplicación
-    process.env.MYSQL_HOST = process.env.MYSQLHOST || process.env.MYSQL_HOST;
-    process.env.MYSQL_PORT = process.env.MYSQLPORT || process.env.MYSQL_PORT;
-    process.env.MYSQL_USER = process.env.MYSQLUSER || process.env.MYSQL_USER;
-    process.env.MYSQL_PASSWORD = process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD;
-    process.env.MYSQL_DATABASE = process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE;
-    
-    // Asegurar que DB_TYPE sea mysql
-    process.env.DB_TYPE = 'mysql';
-  }
-  
-  // Información de entorno para Railway
+  // Información de entorno simplificada
   const envInfo = {
-    NODE_ENV: process.env.NODE_ENV || 'development',
-    RAILWAY: isRailway ? 'Sí' : 'No',
-    DB_TYPE: process.env.DB_TYPE || 'no configurado',
-    // Variables originales de Railway
-    MYSQLHOST: process.env.MYSQLHOST || 'no configurado',
-    MYSQLPORT: process.env.MYSQLPORT || 'no configurado',
-    MYSQLUSER: process.env.MYSQLUSER || 'no configurado',
-    MYSQLDATABASE: process.env.MYSQLDATABASE || 'no configurado',
-    // Variables mapeadas
-    MYSQL_HOST: process.env.MYSQL_HOST || 'no configurado',
-    MYSQL_PORT: process.env.MYSQL_PORT || 'no configurado',
-    MYSQL_USER: process.env.MYSQL_USER || 'no configurado',
-    MYSQL_DATABASE: process.env.MYSQL_DATABASE || 'no configurado',
-    // Otras variables importantes
-    API_URL: process.env.API_URL ? 'configurado' : 'no configurado',
-    API_KEY: process.env.API_KEY ? 'configurado' : 'no configurado'
+    app: {
+      NODE_ENV: process.env.NODE_ENV || 'development',
+      RAILWAY: isRailway ? 'Sí' : 'No',
+      PORT: process.env.PORT || 3000
+    },
+    database: {
+      DB_TYPE: process.env.DB_TYPE || 'no configurado',
+      MYSQL_HOST: process.env.MYSQL_HOST || 'no configurado',
+      MYSQL_PORT: process.env.MYSQL_PORT || 'no configurado',
+      MYSQL_USER: process.env.MYSQL_USER || 'no configurado',
+      MYSQL_DATABASE: process.env.MYSQL_DATABASE || 'no configurado'
+    },
+    api: {
+      API_URL: process.env.API_URL ? 'configurado' : 'no configurado',
+      API_KEY: process.env.API_KEY ? 'configurado' : 'no configurado'
+    }
   };
   
   res.json({
