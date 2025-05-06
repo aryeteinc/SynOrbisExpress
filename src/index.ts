@@ -75,6 +75,13 @@ if (!fs.existsSync(imagesFolder)) {
   console.log(`Images directory created: ${imagesFolder}`);
 }
 
+// Create directory for asesores images
+const asesoresImagesFolder = config.asesoresImagesFolder;
+if (!fs.existsSync(asesoresImagesFolder)) {
+  fs.mkdirSync(asesoresImagesFolder, { recursive: true });
+  console.log(`Asesores images directory created: ${asesoresImagesFolder}`);
+}
+
 // Initialize database
 const db = new DatabaseConnection({
   type: config.database.type as 'sqlite' | 'mysql',
