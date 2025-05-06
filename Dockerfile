@@ -15,8 +15,12 @@ RUN npm run build
 # Exponer puerto
 EXPOSE 3001
 
-# Crear volumen para imágenes y base de datos SQLite
-VOLUME ["/app/imagenes_inmuebles", "/app/data"]
+# Railway no permite la directiva VOLUME
+# Para datos persistentes, usa Railway Volumes desde el panel de control
+# https://docs.railway.app/reference/volumes
+
+# Crear directorios para imágenes y base de datos SQLite
+RUN mkdir -p /app/imagenes_inmuebles /app/data
 
 # Comando para iniciar la aplicación
-CMD ["node", "dist/index.js"]
+CMD ["node", "app.js"]
