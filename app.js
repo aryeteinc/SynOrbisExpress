@@ -11,6 +11,18 @@ const isRailway = process.env.RAILWAY_STATIC_URL ? true : false;
 console.log('Iniciando aplicación en modo:', process.env.NODE_ENV);
 console.log('Railway detectado:', isRailway ? 'Sí' : 'No');
 
+// Ejecutar script de diagnóstico en Railway
+if (isRailway) {
+  try {
+    console.log('Ejecutando script de diagnóstico para Railway...');
+    const { execSync } = require('child_process');
+    const output = execSync('node scripts/railway-config.js').toString();
+    console.log(output);
+  } catch (error) {
+    console.error('Error al ejecutar script de diagnóstico:', error.message);
+  }
+}
+
 // Mostrar variables de configuración (sin mostrar contraseñas)
 console.log('Configuración de base de datos:');
 console.log('- DB_TYPE:', process.env.DB_TYPE);
