@@ -1,26 +1,22 @@
-FROM node:20-alpine
+FROM node:16-alpine
 
 WORKDIR /app
 
-# Instalar dependencias
+# Instalar solo las dependencias de producción
 COPY package*.json ./
-RUN npm install
+RUN npm ci --only=production
 
-# Copiar código fuente
-COPY . .
+# Copiar solo los archivos necesarios
+COPY app.js ./
+COPY scripts ./scripts
+COPY src ./src
+COPY .env.example ./
 
-# Compilar TypeScript
-RUN npm run build
+# Exponer puerto (Railway asigna PORT automáticamente)
+EXPOSE 3000
 
-# Exponer puerto
-EXPOSE 3001
-
-# Railway no permite la directiva VOLUME
-# Para datos persistentes, usa Railway Volumes desde el panel de control
-# https://docs.railway.app/reference/volumes
-
-# Crear directorios para imágenes y base de datos SQLite
-RUN mkdir -p /app/imagenes_inmuebles /app/data
+# Crear directorios para imágenes
+RUN mkdir -p /app/public/images/inmuebles /app/logs
 
 # Comando para iniciar la aplicación
 CMD ["node", "app.js"]
