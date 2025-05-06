@@ -69,6 +69,7 @@ async function fixInmueblesTable() {
     const hasAreaConstruida = await db.schema.hasColumn('inmuebles', 'area_construida');
     const hasAreaPrivada = await db.schema.hasColumn('inmuebles', 'area_privada');
     const hasAreaTerreno = await db.schema.hasColumn('inmuebles', 'area_terreno');
+    const hasDestacado = await db.schema.hasColumn('inmuebles', 'destacado');
     
     // Añadir las columnas si no existen
     if (!hasAreaConstruida) {
@@ -99,6 +100,16 @@ async function fixInmueblesTable() {
       console.log('Columna area_terreno añadida correctamente.');
     } else {
       console.log('La columna area_terreno ya existe.');
+    }
+    
+    if (!hasDestacado) {
+      console.log('Añadiendo columna destacado...');
+      await db.schema.table('inmuebles', table => {
+        table.boolean('destacado').defaultTo(false);
+      });
+      console.log('Columna destacado añadida correctamente.');
+    } else {
+      console.log('La columna destacado ya existe.');
     }
     
     console.log('Todas las columnas han sido verificadas y añadidas si eran necesarias.');

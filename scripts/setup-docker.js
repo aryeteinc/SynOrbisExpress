@@ -106,12 +106,21 @@ function setupMySQLContainer() {
       }
       
       console.log(chalk.yellow(`Creando contenedor MySQL '${config.dockerMysqlContainer}'...`));
+      
+      // Detectar la arquitectura del sistema
+      const arch = execSync('uname -m', { stdio: 'pipe' }).toString().trim();
+      const isArm64 = arch === 'arm64' || arch === 'aarch64';
+      
+      // Usar imagen compatible con ARM64 si es necesario
+      const mysqlImage = isArm64 ? 'mysql:8.0' : 'mysql:5.7';
+      console.log(chalk.blue(`Arquitectura detectada: ${arch}, usando imagen: ${mysqlImage}`));
+      
       execSync(`docker run --name ${config.dockerMysqlContainer} \
         -e MYSQL_ROOT_PASSWORD=${config.dockerMysqlRootPassword} \
         -e MYSQL_DATABASE=${config.mysqlDatabase} \
         -p ${config.mysqlPort}:3306 \
         --network ${config.dockerNetwork} \
-        -d mysql:5.7`, { stdio: 'pipe' });
+        -d ${mysqlImage}`, { stdio: 'pipe' });
       console.log(chalk.green(`✓ Contenedor MySQL '${config.dockerMysqlContainer}' creado correctamente`));
       
       // Esperar a que MySQL esté listo
