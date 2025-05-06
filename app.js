@@ -115,18 +115,21 @@ app.get('/status', async (req, res) => {
     if (process.env.DB_TYPE === 'mysql' && process.env.MYSQL_HOST) {
       const mysql = require('mysql2/promise');
       
-      // Configuración de conexión
-      const config = {
-        host: process.env.MYSQL_HOST,
-        port: process.env.MYSQL_PORT || 3306,
-        user: process.env.MYSQL_USER,
-        password: process.env.MYSQL_PASSWORD,
-        database: process.env.MYSQL_DATABASE
-      };
+      // Crear cadena de conexión directa
+      let connectionString;
       
-      console.log('Intentando conectar a MySQL:', config.host, config.port, config.database);
+      // Si estamos en Railway, usar variables de Railway
+      if (isRailway && process.env.MYSQLUSER) {
+        connectionString = `mysql://${process.env.MYSQLUSER}:${process.env.MYSQLPASSWORD}@${process.env.MYSQLHOST}:${process.env.MYSQLPORT || 3306}/${process.env.MYSQLDATABASE}`;
+        console.log('Usando cadena de conexión Railway');
+      } else {
+        connectionString = `mysql://${process.env.MYSQL_USER}:${process.env.MYSQL_PASSWORD}@${process.env.MYSQL_HOST}:${process.env.MYSQL_PORT || 3306}/${process.env.MYSQL_DATABASE}`;
+        console.log('Usando cadena de conexión estándar');
+      }
       
-      const connection = await mysql.createConnection(config);
+      console.log('Intentando conectar a MySQL con cadena de conexión');
+      
+      const connection = await mysql.createConnection(connectionString);
       const [rows] = await connection.execute('SELECT 1 as test');
       
       if (rows && rows.length > 0) {
