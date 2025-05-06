@@ -361,6 +361,7 @@ Para más detalles, consulta la [Guía Rápida](docs/guia-rapida.md).
 - [Guía de Reinstalación](docs/reinstalacion.md) - Proceso completo para reinstalar desde cero en una nueva máquina
 - [Guía de Despliegue en Hosting Compartido](docs/despliegue-hosting-compartido.md) - Instrucciones para desplegar en Namecheap u otros hostings compartidos
 - [Guía de Despliegue Gratuito](docs/despliegue-gratuito.md) - Opciones para probar la aplicación en plataformas gratuitas
+- [Guía de Despliegue en Railway](docs/despliegue-railway.md) - Guía completa para desplegar en Railway (Node.js y Laravel)
 - [Guía de Optimización](docs/optimizacion.md) - Técnicas para mejorar el rendimiento de la sincronización
 - [Solución de Problemas](docs/solucion-problemas.md) - Soluciones para los problemas más comunes
 - [Sincronización](docs/sincronizacion.md) - Detalles sobre el proceso de sincronización
