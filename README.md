@@ -2,6 +2,14 @@
 
 Aplicación Express.js para sincronizar datos de propiedades inmobiliarias desde la API de Orbis a una base de datos local (SQLite o MySQL).
 
+## Novedades y Mejoras
+
+### Mayo 2025
+- **Instalación Simplificada**: Nuevo script `setup.js` para verificar y configurar automáticamente el entorno
+- **Optimización de Rendimiento**: Script `optimize-sync.js` para mejorar la velocidad de sincronización
+- **Corrección de Estructura de BD**: Añadidas columnas faltantes en la tabla `inmuebles`
+- **Documentación Mejorada**: Nuevas guías de instalación, optimización y solución de problemas
+
 ## Características Implementadas
 
 - Sincronización automatizada con la API de propiedades inmobiliarias
@@ -26,6 +34,25 @@ npm install
 ```
 
 3. Configurar variables de entorno creando un archivo `.env`:
+
+```bash
+cp .env.example .env
+# Editar el archivo .env con tus credenciales
+```
+
+4. Ejecutar el script de instalación y verificación:
+
+```bash
+node scripts/setup.js
+```
+
+Este script verificará el entorno, la estructura de la base de datos y realizará las correcciones necesarias automáticamente.
+
+5. Optimizar la sincronización (opcional pero recomendado):
+
+```bash
+node scripts/optimize-sync.js
+```
 
 ```
 # Configuración de la API
@@ -240,12 +267,27 @@ Con el siguiente cuerpo:
 2. **Errores en la base de datos**:
    - Reinicia la base de datos para resolver problemas estructurales
    - `node scripts/reset-db.js --confirmar`
+   - Para errores de columnas faltantes como "Unknown column 'area_construida' in 'field list'"
+   - `node scripts/fix-inmuebles-table.js`
 
 3. **Errores en imágenes**:
-   - Ejecuta la sincronización sin descargar imágenes
-   - `node scripts/sync-js.js --no-imagenes`
+   - Verifica que el directorio de imágenes exista y tenga permisos de escritura
+   - `mkdir -p ./public/images/inmuebles`
+   - `chmod -R 755 ./public/images/inmuebles`
+
+4. **Sincronización lenta**:
+   - Optimiza la base de datos y el rendimiento
+   - `node scripts/optimize-sync.js`
+
+5. **Instalación en nueva máquina**:
+   - Utiliza el script de instalación y verificación
+   - `node scripts/setup.js`
 
 ## Documentación Adicional
 
 - [Documentación de Sincronización](./docs/sincronizacion.md) - Detalles sobre el sistema de sincronización, estructura de datos y procesos
 - [Guía de Despliegue](./docs/despliegue.md) - Instrucciones detalladas para desplegar en diferentes entornos (Docker, hosting compartido, servicios especializados)
+- [Guía de Instalación](docs/instalacion.md): Instrucciones detalladas para instalar y configurar SyncOrbisExpress
+- [Guía de Optimización](docs/optimizacion.md): Técnicas para mejorar el rendimiento de la sincronización
+- [Solución de Problemas](docs/solucion-problemas.md): Soluciones para los problemas más comunes
+- [Sincronización](docs/sincronizacion.md): Detalles sobre el proceso de sincronización

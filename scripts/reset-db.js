@@ -320,6 +320,9 @@ async function resetDatabase() {
       table.string('titulo');
       table.string('direccion');
       table.float('area');
+      table.float('area_construida').nullable();
+      table.float('area_privada').nullable();
+      table.float('area_terreno').nullable();
       table.integer('habitaciones');
       table.integer('banos');
       table.integer('garajes');
