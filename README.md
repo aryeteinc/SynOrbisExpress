@@ -358,6 +358,7 @@ Para más detalles, consulta la [Guía Rápida](docs/guia-rapida.md).
 - [Guía Rápida](docs/guia-rapida.md) - Comandos y operaciones más comunes
 - [Guía de Instalación Estándar](docs/instalacion.md) - Instrucciones detalladas para instalar y configurar SyncOrbisExpress
 - [Guía de Instalación con Docker](docs/instalacion-docker.md) - Configuración opcional con Docker para desarrollo
+- [Guía de Reinstalación](docs/reinstalacion.md) - Proceso completo para reinstalar desde cero en una nueva máquina
 - [Guía de Optimización](docs/optimizacion.md) - Técnicas para mejorar el rendimiento de la sincronización
 - [Solución de Problemas](docs/solucion-problemas.md) - Soluciones para los problemas más comunes
 - [Sincronización](docs/sincronizacion.md) - Detalles sobre el proceso de sincronización
