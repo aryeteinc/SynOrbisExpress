@@ -25,15 +25,32 @@ app.get('/', (req, res) => {
     res.send(`
       <h1>SyncOrbisExpress - Inicializando...</h1>
       <p>Ejecutando scripts de configuración...</p>
+      <p>Este proceso puede tardar unos minutos. No cierres esta ventana.</p>
       <script>
         setTimeout(() => {
           window.location.href = '/status';
-        }, 5000);
+        }, 15000);
       </script>
     `);
     
+    // Configurar variables de entorno para MySQL en Railway
+    if (isRailway) {
+      // Mapear variables de Railway a las que espera la aplicación
+      process.env.MYSQL_HOST = process.env.MYSQLHOST || process.env.MYSQL_HOST;
+      process.env.MYSQL_PORT = process.env.MYSQLPORT || process.env.MYSQL_PORT;
+      process.env.MYSQL_USER = process.env.MYSQLUSER || process.env.MYSQL_USER;
+      process.env.MYSQL_PASSWORD = process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD;
+      process.env.MYSQL_DATABASE = process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE;
+      
+      // Asegurar que DB_TYPE sea mysql
+      process.env.DB_TYPE = 'mysql';
+    }
+    
     // Ejecutar scripts de configuración en segundo plano
-    exec('node scripts/setup.js && node scripts/fix-inmuebles-table.js', (error, stdout, stderr) => {
+    const setupCmd = 'node scripts/setup.js && node scripts/fix-inmuebles-table.js';
+    console.log('Ejecutando:', setupCmd);
+    
+    exec(setupCmd, (error, stdout, stderr) => {
       if (error) {
         console.error('Error en configuración:', error);
         return;
@@ -56,15 +73,55 @@ app.get('/', (req, res) => {
 });
 
 // Ruta para verificar el estado
-app.get('/status', (req, res) => {
+app.get('/status', async (req, res) => {
   // Verificar la conexión a la base de datos
   let dbStatus = 'No verificado';
+  
+  // Intentar conectar a la base de datos
+  if (process.env.DB_TYPE === 'mysql') {
+    try {
+      const mysql = require('mysql2/promise');
+      const connection = await mysql.createConnection({
+        host: process.env.MYSQL_HOST,
+        port: process.env.MYSQL_PORT,
+        user: process.env.MYSQL_USER,
+        password: process.env.MYSQL_PASSWORD,
+        database: process.env.MYSQL_DATABASE
+      });
+      
+      // Verificar la conexión con una consulta simple
+      const [rows] = await connection.execute('SELECT 1 as test');
+      if (rows && rows.length > 0) {
+        dbStatus = 'Conectado correctamente';
+      }
+      
+      await connection.end();
+    } catch (error) {
+      dbStatus = `Error: ${error.message}`;
+      console.error('Error al conectar a la base de datos:', error);
+    }
+  }
+  
+  // Configurar variables de entorno para MySQL en Railway
+  if (isRailway) {
+    // Mapear variables de Railway a las que espera la aplicación
+    process.env.MYSQL_HOST = process.env.MYSQLHOST || process.env.MYSQL_HOST;
+    process.env.MYSQL_PORT = process.env.MYSQLPORT || process.env.MYSQL_PORT;
+    process.env.MYSQL_USER = process.env.MYSQLUSER || process.env.MYSQL_USER;
+    process.env.MYSQL_PASSWORD = process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD;
+    process.env.MYSQL_DATABASE = process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE;
+    
+    // Asegurar que DB_TYPE sea mysql
+    process.env.DB_TYPE = 'mysql';
+  }
   
   // Información de entorno para Railway
   const envInfo = {
     NODE_ENV: process.env.NODE_ENV || 'development',
-    DB_HOST: process.env.MYSQLHOST || process.env.DB_HOST || 'no configurado',
-    DB_DATABASE: process.env.MYSQLDATABASE || process.env.DB_DATABASE || 'no configurado',
+    DB_HOST: process.env.MYSQL_HOST || 'no configurado',
+    DB_PORT: process.env.MYSQL_PORT || 'no configurado',
+    DB_USER: process.env.MYSQL_USER || 'no configurado',
+    DB_DATABASE: process.env.MYSQL_DATABASE || 'no configurado',
     RAILWAY: isRailway ? 'Sí' : 'No'
   };
   
