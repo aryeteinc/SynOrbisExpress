@@ -13,7 +13,15 @@ const path = require('path');
 const knex = require('knex');
 const dotenv = require('dotenv');
 const { execSync } = require('child_process');
-const chalk = require('chalk') || { green: (t) => t, yellow: (t) => t, red: (t) => t, blue: (t) => t, bold: (t) => t };
+
+// Implementación simple para reemplazar chalk
+const chalk = {
+  green: (text) => `\x1b[32m${text}\x1b[0m`,
+  yellow: (text) => `\x1b[33m${text}\x1b[0m`,
+  red: (text) => `\x1b[31m${text}\x1b[0m`,
+  blue: (text) => `\x1b[34m${text}\x1b[0m`,
+  bold: (text) => `\x1b[1m${text}\x1b[0m`
+};
 
 // Cargar variables de entorno
 dotenv.config();

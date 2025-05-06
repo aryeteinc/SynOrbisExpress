@@ -6,6 +6,7 @@ Aplicación Express.js para sincronizar datos de propiedades inmobiliarias desde
 
 ### Mayo 2025
 - **Instalación Simplificada**: Nuevo script `setup.js` para verificar y configurar automáticamente el entorno
+- **Soporte para Docker** (opcional): Nuevo script `setup-docker.js` para configurar la base de datos en Docker (ideal para desarrollo)
 - **Optimización de Rendimiento**: Script `optimize-sync.js` para mejorar la velocidad de sincronización
 - **Corrección de Estructura de BD**: Añadidas columnas faltantes en la tabla `inmuebles`
 - **Documentación Mejorada**: Nuevas guías de instalación, optimización y solución de problemas
@@ -24,7 +25,9 @@ Aplicación Express.js para sincronizar datos de propiedades inmobiliarias desde
 
 ## Instalación
 
-### Instalación Local
+SyncOrbisExpress ofrece dos opciones de instalación para adaptarse a diferentes entornos:
+
+### Opción 1: Instalación Estándar (Recomendada para Producción)
 
 1. Clonar el repositorio
 2. Instalar dependencias:
@@ -33,7 +36,7 @@ Aplicación Express.js para sincronizar datos de propiedades inmobiliarias desde
 npm install
 ```
 
-3. Configurar variables de entorno creando un archivo `.env`:
+3. Configurar variables de entorno:
 
 ```bash
 cp .env.example .env
@@ -43,7 +46,7 @@ cp .env.example .env
 4. Ejecutar el script de instalación y verificación:
 
 ```bash
-node scripts/setup.js
+npm run setup
 ```
 
 Este script verificará el entorno, la estructura de la base de datos y realizará las correcciones necesarias automáticamente.
@@ -51,29 +54,75 @@ Este script verificará el entorno, la estructura de la base de datos y realizar
 5. Optimizar la sincronización (opcional pero recomendado):
 
 ```bash
-node scripts/optimize-sync.js
+npm run optimize
 ```
+
+### Opción 2: Instalación con Docker (Opcional, Recomendada para Desarrollo)
+
+1. Clonar el repositorio e instalar dependencias:
+
+```bash
+git clone https://github.com/aryeteinc/SynOrbisExpress.git
+cd SynOrbisExpress
+npm install
+```
+
+2. Configurar MySQL en Docker (opcional):
+
+```bash
+npm run setup:docker
+```
+
+3. Ejecutar el script de instalación con la opción de Docker:
+
+```bash
+npm run setup -- --docker
+```
+
+4. Optimizar la sincronización:
+
+```bash
+npm run optimize
+```
+
+> **IMPORTANTE**: El uso de Docker es completamente opcional y está pensado principalmente para entornos de desarrollo. En producción, se recomienda usar la instalación estándar con MySQL instalado directamente en el servidor.
+
+## Configuración
+
+### Archivo .env
+
+El archivo `.env` contiene todas las variables de entorno necesarias para configurar el sistema. Puedes crear este archivo copiando el archivo `.env.example` y modificando los valores según tus necesidades:
+
+```bash
+cp .env.example .env
+```
+
+Principales variables de configuración:
 
 ```
 # Configuración de la API
-API_URL=https://ahoinmobiliaria.webdgi.site/api/inmueble/restful/list/0c353a42-0bf1-432e-a7f8-6f87bab5f5fe/
-IMAGES_FOLDER=./imagenes_inmuebles
+API_URL=https://tu-api-url.com
 
-# Configuración de base de datos SQLite (predeterminada)
-DB_TYPE=sqlite
+# Configuración de la base de datos
+DB_TYPE=mysql            # mysql o sqlite
+
+# MySQL (si DB_TYPE=mysql)
+MYSQL_HOST=localhost     # o 'mysql' si usas Docker
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=tu_contraseña
+MYSQL_DATABASE=inmuebles
+
+# SQLite (si DB_TYPE=sqlite)
 SQLITE_PATH=./inmuebles_db.sqlite
 
-# Configuración para MySQL (opcional)
-# DB_TYPE=mysql
-# MYSQL_HOST=localhost
-# MYSQL_PORT=3306
-# MYSQL_USER=root
-# MYSQL_PASSWORD=tu_contraseña
-# MYSQL_DATABASE=inmuebles
+# Almacenamiento de imágenes
+IMAGES_FOLDER=./public/images/inmuebles
 
-# Configuración general
-JWT_SECRET=tu_secreto_jwt
-PORT=3001
+# Docker (opcional, solo si usas Docker)
+DOCKER_NETWORK=syncorbis-network
+DOCKER_MYSQL_CONTAINER=syncorbis-mysql
+DOCKER_MYSQL_ROOT_PASSWORD=syncorbis
 ```
 
 4. Iniciar la aplicación en modo desarrollo:
@@ -283,11 +332,33 @@ Con el siguiente cuerpo:
    - Utiliza el script de instalación y verificación
    - `node scripts/setup.js`
 
+## Comandos Rápidos
+
+SyncOrbisExpress incluye varios scripts NPM para facilitar su uso:
+
+```bash
+# Instalación y configuración
+npm run setup              # Configuración estándar
+npm run setup -- --docker  # Configuración con Docker
+npm run setup:docker       # Configurar MySQL en Docker (opcional)
+
+# Sincronización
+npm run sync:js            # Sincronización completa
+npm run sync:js -- --limite=100  # Sincronización con límite
+
+# Optimización y mantenimiento
+npm run optimize           # Optimizar la base de datos
+npm run fix-inmuebles      # Corregir tabla inmuebles
+```
+
+Para más detalles, consulta la [Guía Rápida](docs/guia-rapida.md).
+
 ## Documentación Adicional
 
-- [Documentación de Sincronización](./docs/sincronizacion.md) - Detalles sobre el sistema de sincronización, estructura de datos y procesos
-- [Guía de Despliegue](./docs/despliegue.md) - Instrucciones detalladas para desplegar en diferentes entornos (Docker, hosting compartido, servicios especializados)
-- [Guía de Instalación](docs/instalacion.md): Instrucciones detalladas para instalar y configurar SyncOrbisExpress
-- [Guía de Optimización](docs/optimizacion.md): Técnicas para mejorar el rendimiento de la sincronización
-- [Solución de Problemas](docs/solucion-problemas.md): Soluciones para los problemas más comunes
-- [Sincronización](docs/sincronizacion.md): Detalles sobre el proceso de sincronización
+- [Guía Rápida](docs/guia-rapida.md) - Comandos y operaciones más comunes
+- [Guía de Instalación Estándar](docs/instalacion.md) - Instrucciones detalladas para instalar y configurar SyncOrbisExpress
+- [Guía de Instalación con Docker](docs/instalacion-docker.md) - Configuración opcional con Docker para desarrollo
+- [Guía de Optimización](docs/optimizacion.md) - Técnicas para mejorar el rendimiento de la sincronización
+- [Solución de Problemas](docs/solucion-problemas.md) - Soluciones para los problemas más comunes
+- [Sincronización](docs/sincronizacion.md) - Detalles sobre el proceso de sincronización
+- [Documentación General](docs/README.md) - Índice completo de documentación

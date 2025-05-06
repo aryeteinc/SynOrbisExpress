@@ -13,28 +13,76 @@ const path = require('path');
 const knex = require('knex');
 const dotenv = require('dotenv');
 const { execSync } = require('child_process');
-const chalk = require('chalk') || { green: (t) => t, yellow: (t) => t, red: (t) => t, blue: (t) => t, bold: (t) => t };
+
+// Implementación simple para reemplazar chalk
+const chalk = {
+  green: (text) => `\x1b[32m${text}\x1b[0m`,
+  yellow: (text) => `\x1b[33m${text}\x1b[0m`,
+  red: (text) => `\x1b[31m${text}\x1b[0m`,
+  blue: (text) => `\x1b[34m${text}\x1b[0m`,
+  bold: (text) => `\x1b[1m${text}\x1b[0m`
+};
 
 // Cargar variables de entorno
 dotenv.config();
 
-// Procesar argumentos
+// Procesar argumentos de línea de comandos
 const args = process.argv.slice(2);
 const force = args.includes('--force');
 
+// Docker es completamente opcional
+const dockerMode = args.includes('--docker');
+
+console.log(chalk.blue(`Modo: ${dockerMode ? 'Docker' : 'Local'}`));
+
 // Configuración
 const config = {
+  // Configuración de base de datos
   dbType: process.env.DB_TYPE || 'mysql',
-  mysqlHost: process.env.MYSQL_HOST || process.env.DB_HOST || 'localhost',
+  // En modo Docker, el host por defecto es 'mysql' (nombre del contenedor)
+  // En modo local, el host por defecto es 'localhost'
+  mysqlHost: process.env.MYSQL_HOST || process.env.DB_HOST || (dockerMode ? 'mysql' : 'localhost'),
   mysqlPort: process.env.MYSQL_PORT || process.env.DB_PORT || 3306,
   mysqlUser: process.env.MYSQL_USER || process.env.DB_USER || 'root',
   mysqlPassword: process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || '',
   mysqlDatabase: process.env.MYSQL_DATABASE || process.env.DB_DATABASE || 'inmuebles',
-  imagesFolder: process.env.IMAGES_FOLDER || path.join(__dirname, '../public/images/inmuebles')
+  sqlitePath: process.env.SQLITE_PATH || './inmuebles_db.sqlite',
+  
+  // Configuración de imágenes
+  imagesFolder: process.env.IMAGES_FOLDER || './public/images/inmuebles',
+  
+  // Opciones de ejecución
+  force: force,
+  dockerMode: dockerMode,
+  
+  // Configuración específica para Docker (solo se usa si dockerMode = true)
+  dockerNetwork: process.env.DOCKER_NETWORK || 'syncorbis-network',
+  dockerMysqlContainer: process.env.DOCKER_MYSQL_CONTAINER || 'syncorbis-mysql',
+  dockerMysqlRootPassword: process.env.DOCKER_MYSQL_ROOT_PASSWORD || 'syncorbis'
 };
 
 // Inicializar conexión a la base de datos
 let db;
+
+/**
+ * Verifica si Docker está instalado y configurado
+ */
+async function checkDocker() {
+  console.log(chalk.blue('Verificando Docker...'));
+  try {
+    execSync('docker --version', { stdio: 'pipe' });
+    console.log(chalk.green('✓ Docker está instalado'));
+    return true;
+  } catch (error) {
+    console.log(chalk.red('✗ Docker no está instalado o no está disponible'));
+    if (config.dockerMode) {
+      console.log(chalk.yellow('Has especificado --docker pero Docker no está disponible.'));
+      console.log(chalk.yellow('Por favor instala Docker o ejecuta sin la opción --docker.'));
+      process.exit(1);
+    }
+    return false;
+  }
+}
 
 /**
  * Verifica las dependencias de Node.js

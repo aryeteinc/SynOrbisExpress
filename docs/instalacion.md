@@ -8,7 +8,17 @@ Esta guía proporciona instrucciones detalladas para instalar y configurar SyncO
 - MySQL (versión 5.7 o superior)
 - Git
 
-## Pasos de Instalación
+## Opciones de Instalación
+
+SyncOrbisExpress ofrece flexibilidad en cuanto a la configuración de la base de datos. Puedes elegir entre:
+
+1. **Instalación Estándar**: Utilizando MySQL instalado directamente en tu servidor o máquina local. Esta es la opción recomendada para entornos de producción.
+
+2. **Instalación con Docker** (opcional): Utilizando un contenedor Docker para MySQL. Esta opción es ideal para entornos de desarrollo, ya que simplifica la configuración inicial.
+
+> **IMPORTANTE**: El uso de Docker es completamente opcional. Puedes elegir la opción que mejor se adapte a tus necesidades y al entorno donde se ejecutará la aplicación.
+
+## Pasos de Instalación Estándar
 
 ### 1. Clonar el Repositorio
 
@@ -145,6 +155,12 @@ git pull
 npm install
 node scripts/setup.js
 ```
+
+## Instalación Alternativa con Docker (Opcional)
+
+Si prefieres utilizar Docker para la base de datos MySQL (recomendado para entornos de desarrollo), consulta la guía específica:
+
+[Guía de Instalación con Docker](instalacion-docker.md)
 
 ## Soporte
 

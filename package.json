@@ -15,6 +15,11 @@
     "clean": "rimraf dist",
     "rebuild": "npm run clean && npm run build",
     "sync": "ts-node scripts/sync-orbis.ts",
+    "sync:js": "node scripts/sync-js.js",
+    "setup": "node scripts/setup.js",
+    "setup:docker": "node scripts/setup-docker.js",
+    "optimize": "node scripts/optimize-sync.js",
+    "fix-inmuebles": "node scripts/fix-inmuebles-table.js",
     "lint": "eslint . --ext .ts",
     "postbuild:prod": "echo 'Build completado. Archivos listos en la carpeta dist/'"
   },
@@ -32,7 +37,7 @@
     "better-sqlite3": "^11.9.1",
     "commander": "^13.1.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.5.0",
     "express": "^4.18.3",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.1.0",
@@ -43,6 +48,7 @@
     "mongoose": "^8.13.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
+    "mysql": "^2.18.1",
     "mysql2": "^3.14.0",
     "sqlite3": "^5.1.7"
   },
