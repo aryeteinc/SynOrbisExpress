@@ -250,6 +250,97 @@ Fly.io ofrece un nivel gratuito con recursos suficientes para pruebas.
    - 160GB de transferencia gratuita al mes
    - Base de datos PostgreSQL gratuita de 3GB
 
+## Adaptación para PostgreSQL vs. MySQL
+
+La mayoría de las plataformas gratuitas ofrecen PostgreSQL en lugar de MySQL. Aquí te explicamos cómo manejar esta situación:
+
+### Opción 1: Adaptar SyncOrbisExpress para PostgreSQL
+
+1. **Instala el paquete de PostgreSQL**:
+   ```bash
+   npm install pg knex
+   ```
+
+2. **Modifica la configuración de la base de datos** en `scripts/database.js` o archivo similar:
+   ```javascript
+   // Configuración para PostgreSQL
+   const knex = require('knex');
+   
+   const db = knex({
+     client: process.env.DB_TYPE === 'postgres' ? 'pg' : 'mysql',
+     connection: {
+       host: process.env.DB_HOST,
+       port: process.env.DB_PORT,
+       user: process.env.DB_USER,
+       password: process.env.DB_PASSWORD,
+       database: process.env.DB_DATABASE,
+       ssl: process.env.DB_SSL === 'true' ? {rejectUnauthorized: false} : false
+     },
+     pool: { min: 0, max: 7 }
+   });
+   ```
+
+3. **Ajusta las consultas SQL** para compatibilidad con PostgreSQL:
+   - Cambia comillas invertidas (\`) por comillas dobles (") para nombres de tablas/columnas
+   - Reemplaza `AUTO_INCREMENT` por `SERIAL`
+   - Ajusta funciones específicas de MySQL (como `CONCAT`)
+   - Modifica la sintaxis de `INSERT` para retornar IDs
+
+4. **Ejemplo de script de migración** para crear tablas en PostgreSQL:
+   ```javascript
+   // Ejemplo para la tabla inmuebles
+   await db.schema.createTable('inmuebles', table => {
+     table.increments('id').primary();
+     table.string('ref').notNullable().unique();
+     table.string('codigo_sincronizacion');
+     // ... resto de columnas
+     table.timestamps(true, true); // Equivalente a created_at y updated_at
+   });
+   ```
+
+### Opción 2: Usar MySQL en Plataformas Gratuitas
+
+1. **PlanetScale** - Ofrece un plan gratuito de MySQL:
+   - Regístrate en [PlanetScale](https://planetscale.com/)
+   - Crea una base de datos gratuita
+   - Usa las credenciales proporcionadas en tu aplicación
+   - Ventaja: Compatible 100% con MySQL
+   - Limitación: 5GB de almacenamiento en el plan gratuito
+
+2. **Railway con MySQL**:
+   - Railway soporta MySQL nativamente
+   - Al crear un nuevo servicio, selecciona MySQL en lugar de PostgreSQL
+   - Configura las variables de entorno para conectar con esta base de datos
+
+3. **Clever Cloud**:
+   - Ofrece un plan gratuito de MySQL
+   - 5 conexiones simultáneas y 10MB de almacenamiento (suficiente para pruebas)
+   - Regístrate en [Clever Cloud](https://www.clever-cloud.com/)
+
+4. **AWS RDS** con capa gratuita:
+   - Requiere tarjeta de crédito para registro
+   - Ofrece 12 meses de MySQL gratuito
+   - 20GB de almacenamiento
+   - Más complejo de configurar pero más potente
+
+### Opción 3: Base de Datos Local + Túnel
+
+Si prefieres mantener MySQL localmente:
+
+1. **Configura MySQL en tu máquina local**
+
+2. **Usa ngrok para exponer el puerto MySQL**:
+   ```bash
+   ngrok tcp 3306
+   ```
+
+3. **Configura tu aplicación** para conectarse a la URL proporcionada por ngrok
+
+4. **Limitaciones**:
+   - Requiere que tu máquina esté encendida
+   - La URL cambia cada vez (en la versión gratuita)
+   - Posibles problemas de seguridad
+
 ## Consideraciones Importantes para Todas las Opciones
 
 1. **Seguridad**:
@@ -271,6 +362,21 @@ Fly.io ofrece un nivel gratuito con recursos suficientes para pruebas.
 
 ## Recomendación Final
 
-Para pruebas iniciales, la opción local con Ngrok es la más sencilla y te da control total. Para una solución más duradera pero aún gratuita, Railway.app ofrece el mejor equilibrio entre facilidad de uso y recursos disponibles.
+### Para mantener MySQL (recomendado)
 
-Cuando la aplicación esté lista para producción, considera migrar a un hosting compartido como Namecheap o a un VPS económico como DigitalOcean o Linode.
+1. **Railway.app con MySQL**: La opción más sencilla que soporta MySQL nativamente. Simplemente selecciona MySQL al crear tu servicio de base de datos.
+
+2. **PlanetScale**: Ofrece un plan gratuito de MySQL con 5GB de almacenamiento, más que suficiente para pruebas.
+
+3. **Local + Ngrok**: Si prefieres mantener todo bajo tu control, ejecuta MySQL localmente y usa Ngrok para exponer tanto la aplicación como la base de datos.
+
+### Si estás dispuesto a adaptar a PostgreSQL
+
+Render.com o Fly.io ofrecen entornos más completos con PostgreSQL incluido, pero requerirán modificar las consultas SQL de la aplicación.
+
+### Ruta de evolución recomendada
+
+1. **Desarrollo inicial**: Local con MySQL
+2. **Pruebas con acceso externo**: Local + Ngrok
+3. **Pruebas más estables**: Railway.app con MySQL
+4. **Producción**: Hosting compartido (Namecheap) o VPS económico (DigitalOcean, Linode)
