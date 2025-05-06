@@ -37,7 +37,10 @@ La mayoría de los hostings compartidos requieren configuración específica par
    - Punto de entrada de la aplicación: `app.js` (crearemos este archivo más adelante)
    - Guarda la configuración
 
-3. **Anota el puerto asignado** a tu aplicación Node.js (por ejemplo, `3000`).
+3. **Anota el puerto asignado** a tu aplicación Node.js. Este puerto se muestra claramente en la página de configuración de Node.js después de crear la aplicación. Generalmente aparece como:
+   - "Application port: XXXX" (donde XXXX es un número de puerto, por ejemplo `3000`, `49123`, etc.)
+   - También puedes encontrarlo en la sección "Application URL" que mostrará algo como `https://tudominio.com:XXXX`
+   - Si no ves el puerto asignado, contacta al soporte de Namecheap para obtener esta información.
 
 ## Paso 3: Preparar los Archivos para Subir
 
@@ -64,6 +67,9 @@ En tu máquina local:
    
    // Crear la aplicación Express
    const app = express();
+   // IMPORTANTE: Reemplaza 3000 con el puerto que te asignó Namecheap
+   // Este puerto se muestra en la configuración de la aplicación Node.js en cPanel
+   // Por ejemplo: const port = process.env.PORT || 49123;
    const port = process.env.PORT || 3000; // El puerto asignado por el hosting
    
    // Configurar directorio de archivos estáticos
@@ -189,7 +195,33 @@ En tu máquina local:
 
 3. **Sube los archivos** usando la función de carga del administrador de archivos.
 
-## Paso 5: Configurar la Aplicación en el Servidor
+## Paso 5: Identificar el Puerto Asignado por Namecheap
+
+Es crucial identificar correctamente el puerto que Namecheap ha asignado a tu aplicación Node.js:
+
+1. **En el Panel de Control de Node.js**:
+   - Después de crear la aplicación, regresa a la lista de aplicaciones Node.js
+   - Busca tu aplicación en la lista y observa la columna "Port" o "Puerto"
+   - Este número (por ejemplo, `49123`) es el que debes usar en tu archivo `app.js`
+
+2. **En la Página de Detalles de la Aplicación**:
+   - Haz clic en el nombre de tu aplicación para ver sus detalles
+   - Busca una sección llamada "Application Information" o "Información de la Aplicación"
+   - El puerto se mostrará como "Application Port: XXXX"
+
+3. **En la URL de Acceso**:
+   - En la página de detalles, busca "Application URL" o "URL de la Aplicación"
+   - La URL tendrá el formato: `https://tudominio.com:XXXX`
+   - El número después de los dos puntos es el puerto asignado
+
+4. **Si No Encuentras el Puerto**:
+   - Revisa la documentación de Namecheap sobre aplicaciones Node.js
+   - Contacta al soporte técnico de Namecheap
+   - Temporalmente, puedes intentar con puertos comunes como `3000`, `8080` o `49152` hasta `65535`
+
+> **IMPORTANTE**: Debes actualizar el valor del puerto en tu archivo `app.js` para que coincida exactamente con el puerto asignado por Namecheap. De lo contrario, la aplicación no será accesible.
+
+## Paso 6: Configurar la Aplicación en el Servidor
 
 ### Si tienes acceso SSH:
 
