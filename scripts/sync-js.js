@@ -1010,17 +1010,22 @@ async function processProperty(property, downloadImages = true, trackChanges = t
       // Asignar uso_inmueble_id basado en el nombre
       if (uso_inmueble_nombre && uso_inmueble_nombre.includes('Comercial')) {
         property.uso_inmueble_id = 2; // Comercial
+        property.uso_id = 2; // Comercial (para compatibilidad)
       } else {
         property.uso_inmueble_id = 1; // Vivienda (predeterminado)
+        property.uso_id = 1; // Vivienda (para compatibilidad)
       }
       
       // Asignar estado_inmueble_id basado en el nombre
       if (estado_inmueble_nombre && estado_inmueble_nombre.includes('Arrendado')) {
         property.estado_inmueble_id = 2; // Arrendado
+        property.estado_actual_id = 2; // Arrendado (para compatibilidad)
       } else if (estado_inmueble_nombre && estado_inmueble_nombre.includes('Vendido')) {
         property.estado_inmueble_id = 3; // Vendido
+        property.estado_actual_id = 3; // Vendido (para compatibilidad)
       } else {
         property.estado_inmueble_id = 1; // Disponible (predeterminado)
+        property.estado_actual_id = 1; // Disponible (para compatibilidad)
       }
       
       // Asignar tipo_consignacion_id predeterminado basado en el nombre
@@ -1352,7 +1357,9 @@ async function processProperty(property, downloadImages = true, trackChanges = t
         barrio_id: property.barrio_id,
         tipo_inmueble_id: property.tipo_inmueble_id,
         uso_inmueble_id: property.uso_inmueble_id,
+        uso_id: property.uso_id, // Añadido para compatibilidad
         estado_inmueble_id: property.estado_inmueble_id,
+        estado_actual_id: property.estado_actual_id, // Añadido para compatibilidad
         tipo_consignacion_id: property.tipo_consignacion_id,
         asesor_id: property.asesor_id || 1,
         hash_datos: nuevoHash,
