@@ -16,11 +16,42 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Ruta principal
 app.get('/', (req, res) => {
+  // Verificar si hay un parámetro de inicialización
+  const setupKey = req.query.setup;
+  const apiKey = process.env.API_KEY || 'clave_predeterminada';
+  
+  if (setupKey && setupKey === apiKey) {
+    // Ejecutar scripts de configuración
+    res.send(`
+      <h1>SyncOrbisExpress - Inicializando...</h1>
+      <p>Ejecutando scripts de configuración...</p>
+      <script>
+        setTimeout(() => {
+          window.location.href = '/status';
+        }, 5000);
+      </script>
+    `);
+    
+    // Ejecutar scripts de configuración en segundo plano
+    exec('node scripts/setup.js && node scripts/fix-inmuebles-table.js', (error, stdout, stderr) => {
+      if (error) {
+        console.error('Error en configuración:', error);
+        return;
+      }
+      console.log('Configuración completada:', stdout);
+    });
+    
+    return;
+  }
+  
+  // Mostrar página normal
   res.send(`
     <h1>SyncOrbisExpress está funcionando correctamente</h1>
     <p>Entorno: ${isRailway ? 'Railway' : 'Local'}</p>
     <p>Hora del servidor: ${new Date().toLocaleString()}</p>
     <p><a href="/status">Ver estado</a></p>
+    <p><a href="/?setup=${apiKey}">Inicializar base de datos</a></p>
+    <p><a href="/sync/${apiKey}">Ejecutar sincronización</a></p>
   `);
 });
 
