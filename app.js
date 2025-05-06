@@ -105,11 +105,35 @@ app.get('/status', async (req, res) => {
   
   // Intentar conectar a la base de datos
   try {
-    // Usar un enfoque simple y directo
-    if (process.env.DB_TYPE === 'mysql' && process.env.MYSQL_HOST) {
+    // Usar directamente las variables de Railway
+    if (isRailway && process.env.MYSQLHOST) {
       const mysql = require('mysql2/promise');
       
-      // Configuración de conexión
+      // Configuración de conexión con variables de Railway
+      const config = {
+        host: process.env.MYSQLHOST,
+        port: process.env.MYSQLPORT || 3306,
+        user: process.env.MYSQLUSER,
+        password: process.env.MYSQLPASSWORD,
+        database: process.env.MYSQLDATABASE
+      };
+      
+      console.log('Intentando conectar a MySQL Railway:', config.host, config.port, config.database);
+      
+      const connection = await mysql.createConnection(config);
+      const [rows] = await connection.execute('SELECT 1 as test');
+      
+      if (rows && rows.length > 0) {
+        dbStatus = 'Conectado correctamente a MySQL en Railway';
+      }
+      
+      await connection.end();
+    } 
+    // Usar variables tradicionales si no estamos en Railway
+    else if (process.env.DB_TYPE === 'mysql' && process.env.MYSQL_HOST) {
+      const mysql = require('mysql2/promise');
+      
+      // Configuración de conexión tradicional
       const config = {
         host: process.env.MYSQL_HOST,
         port: process.env.MYSQL_PORT || 3306,
@@ -136,19 +160,27 @@ app.get('/status', async (req, res) => {
     console.error('Error al conectar a la base de datos:', error);
   }
   
-  // Información de entorno simplificada
+  // Información de entorno completa
   const envInfo = {
     app: {
       NODE_ENV: process.env.NODE_ENV || 'development',
       RAILWAY: isRailway ? 'Sí' : 'No',
       PORT: process.env.PORT || 3000
     },
+    // Variables estándar de MySQL
     database: {
       DB_TYPE: process.env.DB_TYPE || 'no configurado',
       MYSQL_HOST: process.env.MYSQL_HOST || 'no configurado',
       MYSQL_PORT: process.env.MYSQL_PORT || 'no configurado',
       MYSQL_USER: process.env.MYSQL_USER || 'no configurado',
       MYSQL_DATABASE: process.env.MYSQL_DATABASE || 'no configurado'
+    },
+    // Variables de Railway MySQL
+    railway_db: {
+      MYSQLHOST: process.env.MYSQLHOST || 'no configurado',
+      MYSQLPORT: process.env.MYSQLPORT || 'no configurado',
+      MYSQLUSER: process.env.MYSQLUSER || 'no configurado',
+      MYSQLDATABASE: process.env.MYSQLDATABASE || 'no configurado'
     },
     api: {
       API_URL: process.env.API_URL ? 'configurado' : 'no configurado',
