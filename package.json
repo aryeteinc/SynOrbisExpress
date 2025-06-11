@@ -8,7 +8,7 @@
     "build:prod": "NODE_ENV=production npm run clean && tsc && npm run copy-scripts",
     "build:bundle": "bash scripts/build-prod.sh",
     "build:bundle:obfuscate": "bash scripts/build-prod.sh --obfuscate",
-    "copy-scripts": "mkdir -p dist/scripts && cp scripts/*.js dist/scripts/",    
+    "copy-scripts": "mkdir -p dist/scripts && cp scripts/*.js dist/scripts/",
     "start": "node app.js",
     "start:prod": "NODE_ENV=production node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
@@ -50,6 +50,7 @@
     "multer": "^1.4.5-lts.1",
     "mysql": "^2.18.1",
     "mysql2": "^3.14.0",
+    "sharp": "^0.34.2",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {

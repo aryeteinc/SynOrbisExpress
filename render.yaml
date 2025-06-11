@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: syncorbisexpress
+    env: node
+    buildCommand: npm install
+    startCommand: node app.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_TYPE
+        value: mysql
+      - key: PORT
+        value: 3000
+      - key: API_KEY
+        fromDatabase:
+          name: syncorbis-db
+          property: connectionString
+      - key: MYSQL_HOST
+        fromDatabase:
+          name: syncorbis-db
+          property: host
+      - key: MYSQL_PORT
+        fromDatabase:
+          name: syncorbis-db
+          property: port
+      - key: MYSQL_USER
+        fromDatabase:
+          name: syncorbis-db
+          property: username
+      - key: MYSQL_PASSWORD
+        fromDatabase:
+          name: syncorbis-db
+          property: password
+      - key: MYSQL_DATABASE
+        fromDatabase:
+          name: syncorbis-db
+          property: database
+
+databases:
+  - name: syncorbis-db
+    plan: free
+    type: mysql

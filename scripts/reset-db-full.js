@@ -247,6 +247,7 @@ async function createAllTables() {
         table.timestamp('fecha_creacion').defaultTo(db.fn.now());
         table.timestamp('fecha_sincronizacion').defaultTo(db.fn.now());
         table.text('hash_datos');
+        table.string('slug').nullable().comment('URL amigable para el inmueble');
       });
       console.log('Tabla inmuebles creada');
     }
@@ -412,23 +413,46 @@ async function insertCatalogData() {
   }
 }
 
-// Función para crear directorios necesarios
-async function createDirectories() {
+// Función para eliminar imágenes y recrear directorios necesarios
+async function cleanAndCreateDirectories() {
   try {
-    console.log('Creando directorios necesarios...');
+    console.log('Limpiando y creando directorios necesarios...');
     
-    // Directorio para imágenes
-    const imagesDir = path.join(__dirname, '..', 'public', 'images', 'inmuebles');
-    if (!fs.existsSync(imagesDir)) {
+    // Directorio para imágenes de inmuebles
+    const imagesDir = process.env.IMAGES_FOLDER || path.join(process.cwd(), 'public/images/inmuebles');
+    
+    // Eliminar todas las imágenes si el directorio existe
+    if (fs.existsSync(imagesDir)) {
+      console.log(`Eliminando imágenes en: ${imagesDir}`);
+      
+      // Leer todos los archivos y directorios en el directorio de imágenes
+      const items = fs.readdirSync(imagesDir);
+      
+      // Eliminar cada archivo/directorio
+      for (const item of items) {
+        const itemPath = path.join(imagesDir, item);
+        
+        if (fs.lstatSync(itemPath).isDirectory()) {
+          // Es un directorio, eliminar recursivamente
+          fs.rmSync(itemPath, { recursive: true, force: true });
+          console.log(`Directorio eliminado: ${itemPath}`);
+        } else {
+          // Es un archivo, eliminar directamente
+          fs.unlinkSync(itemPath);
+          console.log(`Archivo eliminado: ${itemPath}`);
+        }
+      }
+      
+      console.log('Todas las imágenes han sido eliminadas.');
+    } else {
+      // Crear el directorio si no existe
       fs.mkdirSync(imagesDir, { recursive: true });
       console.log(`Directorio creado: ${imagesDir}`);
-    } else {
-      console.log(`El directorio ya existe: ${imagesDir}`);
     }
     
-    console.log('Directorios creados correctamente.');
+    console.log('Directorios preparados correctamente.');
   } catch (error) {
-    console.error('Error al crear directorios:', error);
+    console.error('Error al limpiar y crear directorios:', error);
     throw error;
   }
 }
@@ -444,15 +468,18 @@ async function main() {
     // Crear todas las tablas
     await createAllTables();
     
-    // Insertar datos de catálogo
-    await insertCatalogData();
+    // Insertar datos de catálogo si no se especificó lo contrario
+    if (!sinCatalogos) {
+      await insertCatalogData();
+    }
     
-    // Crear directorios necesarios
-    await createDirectories();
+    // Limpiar imágenes y crear directorios necesarios
+    await cleanAndCreateDirectories();
     
     console.log('Reseteo completo de la base de datos finalizado con éxito.');
   } catch (error) {
     console.error('Error durante el reseteo de la base de datos:', error);
+    process.exit(1);
   } finally {
     // Cerrar la conexión a la base de datos
     await db.destroy();
