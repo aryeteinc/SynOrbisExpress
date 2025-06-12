@@ -710,6 +710,14 @@ async function processBatchInParallel(properties, batchSize = 5, downloadImages 
   const results = [];
   const activeRefs = [];
   
+  // Reiniciar contadores de estadísticas
+  stats.errores = 0;
+  stats.errores_imagenes = 0;
+  stats.inmuebles_procesados = 0;
+  stats.inmuebles_nuevos = 0;
+  stats.inmuebles_actualizados = 0;
+  stats.inmuebles_sin_cambios = 0;
+  
   // Calcular el número total de lotes
   const totalBatches = Math.ceil(properties.length / batchSize);
   console.log(`Procesando ${properties.length} inmuebles en ${totalBatches} lotes (${batchSize} inmuebles por lote)`);
@@ -731,6 +739,7 @@ async function processBatchInParallel(properties, batchSize = 5, downloadImages 
           // Procesar el inmueble
           await processProperty(property, downloadImages, trackChanges);
           activeRefs.push(property.ref);
+          stats.inmuebles_procesados++;
           resolve({ success: true, ref: property.ref });
         } catch (error) {
           console.error(`ERROR al procesar inmueble #${property.ref}: ${error.message}`);
@@ -757,6 +766,53 @@ async function processBatchInParallel(properties, batchSize = 5, downloadImages 
   return { results, activeRefs };
 }
 
+// Función para verificar y configurar la base de datos
+async function setupDatabase() {
+  console.log('\n[1m======================================================================[0m');
+  console.log('[1mVERIFICANDO Y CONFIGURANDO LA BASE DE DATOS[0m');
+  console.log('[1m======================================================================[0m\n');
+
+  try {
+    // 1. Ejecutar setup.js
+    console.log('[1m=== Ejecutando configuración inicial ===[0m');
+    await setupDatabaseTables();
+    console.log('[32m✅ Configuración inicial completada[0m\n');
+
+    // 2. Verificar y añadir columna slug si es necesario
+    console.log('[1m=== Verificando columna slug ===[0m');
+    const hasSlugColumn = await db.schema.hasColumn('inmuebles', 'slug');
+    if (!hasSlugColumn) {
+      console.log('Añadiendo columna slug...');
+      await db.schema.table('inmuebles', table => {
+        table.string('slug').nullable();
+      });
+      console.log('[32m✅ Columna slug añadida correctamente[0m');
+    } else {
+      console.log('[32m✅ Columna slug ya existe[0m');
+    }
+
+    // 3. Verificar estructura de la tabla
+    console.log('\n[1m=== Verificando estructura de la tabla ===[0m');
+    const columns = await db('inmuebles').columnInfo();
+    const requiredColumns = [
+      'id', 'ref', 'codigo_sincronizacion', 'titulo', 'descripcion',
+      'area_construida', 'area_privada', 'area_terreno', 'slug',
+      'estado_inmueble_id', 'uso_inmueble_id'
+    ];
+
+    const missingColumns = requiredColumns.filter(col => !columns[col]);
+    if (missingColumns.length > 0) {
+      throw new Error(`Faltan las siguientes columnas: ${missingColumns.join(', ')}`);
+    }
+    console.log('[32m✅ Estructura de la tabla verificada correctamente[0m');
+
+    console.log('\n[32m[1m✅ Base de datos configurada correctamente[0m[0m\n');
+  } catch (error) {
+    console.error(`[31m❌ Error en la configuración de la base de datos: ${error.message}[0m`);
+    throw error;
+  }
+}
+
 // Función principal
 async function main() {
   console.log('='.repeat(70));
@@ -764,6 +820,9 @@ async function main() {
   console.log('='.repeat(70));
   
   try {
+    // Verificar y configurar la base de datos antes de iniciar la sincronización
+    await setupDatabase();
+    
     // Probar la conexión a la base de datos antes de continuar
     const dbConnected = await testDatabaseConnection();
     if (!dbConnected) {
@@ -1100,10 +1159,11 @@ async function withTransaction(callback) {
     throw error;
   }
 }
-
-// Función para procesar un inmueble
 async function processProperty(property, downloadImages = true, trackChanges = true) {
   try {
+    // Variable para almacenar la información del inmueble
+    let newProperty = null;
+    
     // Iniciar medición de tiempo para este inmueble
     perfLogger.start(`inmueble_${property.ref}`);
     stats.inmuebles_procesados++;
@@ -1530,12 +1590,16 @@ async function processProperty(property, downloadImages = true, trackChanges = t
       });
       
       // Obtenemos el ID del inmueble recién creado para procesar características
-      const newProperty = await db('inmuebles')
+      newProperty = await db('inmuebles')
         .where('ref', property.ref)
         .first();
       
+      if (!newProperty) {
+        throw new Error('No se pudo obtener el inmueble recién creado');
+      }
+
       // Procesar características para nuevos inmuebles
-      if (newProperty && property.caracteristicas && property.caracteristicas.length > 0) {
+      if (property.caracteristicas && property.caracteristicas.length > 0) {
         await processCharacteristics(newProperty.id, property.caracteristicas);
       }
       
@@ -1577,12 +1641,12 @@ async function processProperty(property, downloadImages = true, trackChanges = t
     
     // Procesar imágenes
     if (downloadImages && property.imagenes && Array.isArray(property.imagenes)) {
-      // Obtener el ID interno del inmueble
-      const inmuebleRecord = await db('inmuebles').where('ref', property.ref).first('id');
-      if (inmuebleRecord && inmuebleRecord.id) {
-        await processImages(inmuebleRecord.id, property.ref, property.imagenes);
+      // Actualizar newProperty con la información más reciente
+      newProperty = await db('inmuebles').where('ref', property.ref).first();
+      if (newProperty && newProperty.id) {
+        await processImages(newProperty.id, property.ref, property.imagenes);
       } else {
-        console.error(`Error: No se pudo encontrar el ID interno para el inmueble #${property.ref}`);
+        throw new Error(`No se pudo encontrar el ID interno para el inmueble #${property.ref}`);
       }
     }
     
